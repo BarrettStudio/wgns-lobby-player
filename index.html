@@ -13,11 +13,6 @@
   --muted:rgba(15,23,42,.65);
   --radius:18px;
   --shadow:0 18px 48px rgba(0,0,0,.25);
-
-  /* slideshow timing */
-  --slide-seconds: 8;  /* seconds per image */
-  --fade-seconds: 1.3; /* crossfade length */
-  --slides-count: 4;
 }
 html,body{height:100%}
 body{
@@ -90,36 +85,37 @@ body{
     radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
   pointer-events:none;
   mix-blend-mode:soft-light;
+  z-index:3;
 }
 
-/* Each slide is FULL BLEED background (fills container & rounded corners) */
+/* Each slide is FULL BLEED background and crossfades */
 .wg-slide{
   position:absolute; inset:0;
-  background-size:cover;
-  background-position:center;
   opacity:0;
   animation-name: wgFadeLoop;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-  /* duration set inline per-slide */
+  z-index:1;
 }
-/* Subtle pulse/ken-burns */
+/* Full-bleed background with pulse */
 .wg-slide::before{
   content:"";
   position:absolute; inset:-4%;
-  background:inherit;
+  background-image: var(--bgimg);
   background-size:cover;
   background-position:center;
   transform:scale(1);
   animation: wgPulseLoop 6s ease-in-out infinite;
   filter:saturate(1.02);
 }
-/* prevent double darkening */
-.wg-slide{background-image:none}
-.wg-slide[data-src]{}
-.wg-slide[data-src]::before{background-image: var(--bgimg);}
+.wg-slide::after{
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(900px 600px at 50% 50%, transparent 45%, rgba(0,0,0,.28));
+  pointer-events:none;
+  z-index:2;
+}
 
-/* We will set --bgimg per-slide inline */
 @keyframes wgFadeLoop {
   0% {opacity:0}
   10% {opacity:1}
@@ -162,13 +158,12 @@ body{
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
     pollMs: 45000,
-
-    slideSeconds: 8, // per image
+    slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767421363',
-      'BGTV.png?v=1767421363',
-      'PTS.png?v=1767421363',
-      'RWX.png?v=1767421363'
+      'WGNS.png?v=1767421662',
+      'BGTV.png?v=1767421662',
+      'PTS.png?v=1767421662',
+      'RWX.png?v=1767421662'
     ]
   };
 
@@ -204,15 +199,14 @@ body{
 
     const slidesHtml = config.slides.map((src, i) => {
       const delay = i * config.slideSeconds;
-      // use CSS variable for background image so ::before can inherit cleanly
       return `<div class="wg-slide" style="
-        --bgimg: url('${src}');
+        --bgimg: url(${src});
         animation-duration:${duration}s;
         animation-delay:-${delay}s;
       "></div>`;
     }).join('');
 
-    content.innerHTML = `<div class="wg-slideshow" style="--slides-count:${total}; --slide-seconds:${config.slideSeconds}">${slidesHtml}</div>`;
+    content.innerHTML = `<div class="wg-slideshow">${slidesHtml}</div>`;
   }
 
   function renderWatch(){
