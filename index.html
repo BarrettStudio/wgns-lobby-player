@@ -178,13 +178,14 @@ body::after{
 
 <script>
 (() => {
-  const CACHE_BUST = '1767425252';
+  const CACHE_BUST = '1767425937';
 
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    iframeReloadMs: 12000,
+    iframeReloadMs: 9000,       // more aggressive probing
     detectPollMs: 900,
-    settleLiveMs: 3500,
+    settleLiveMs: 2500,         // faster switch, still stable
+    stuckLiveMs: 8000,          // if LIVE but not playable for 8s, hard rebuild
     slides: [
       'WGNS.png?v=' + CACHE_BUST,
       'BGTV.png?v=' + CACHE_BUST,
@@ -199,7 +200,6 @@ body::after{
   const liveTxt = document.getElementById('wg-live-text');
   const videoWrap = document.getElementById('wg-video');
   const slideshowWrap = document.getElementById('wg-slideshow');
-  const iframeEl = document.getElementById('yt-embed');
   const dbg = document.getElementById('wg-debug');
 
   const debugOn = location.hash.includes('debug');
@@ -211,7 +211,12 @@ body::after{
   let detectTimer = null;
   let initTimer = null;
 
+  // live gating
   let liveConfidenceStartedAt = null;
+
+  // playback health
+  let lastPlayableAt = 0; // last time we saw state 1 or 3
+  let lastErrorAt = 0;    // last time we saw onError
 
   // slideshow
   let slideTimer = null;
@@ -220,7 +225,8 @@ body::after{
   function log(msg){
     if (!debugOn) return;
     const ts = new Date().toLocaleTimeString();
-    dbg.textContent = '[' + ts + '] ' + msg + '\n' + dbg.textContent.slice(0, 1700);
+    dbg.textContent = '[' + ts + '] ' + msg + '
+' + dbg.textContent.slice(0, 1700);
   }
 
   function setUI(live){
@@ -265,6 +271,9 @@ body::after{
       + '&autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
       + '&_=' + Date.now();
   }
+
+  let iframeEl = document.getElementById('yt-embed');
+
   function reloadIframe(){
     iframeEl.src = liveIframeSrc();
     log('iframe reload');
@@ -284,7 +293,7 @@ body::after{
     if (isLive){
       if (!liveConfidenceStartedAt) liveConfidenceStartedAt = now;
       const elapsedMs = now - liveConfidenceStartedAt;
-      log('live evidence ' + (elapsedMs/1000).toFixed(1) + 's');
+      if (debugOn) log('live evidence ' + (elapsedMs/1000).toFixed(1) + 's');
       if (elapsedMs >= config.settleLiveMs){
         setMode('live');
       }
@@ -309,6 +318,7 @@ body::after{
 
     log('state=' + st + ' vid=' + (vid||'(none)') + ' liveByState=' + liveByState + ' liveByVid=' + liveByVideoId);
 
+    // Only declare LIVE when we have real proof (not placeholder vid)
     noteLiveEvidence(liveByState || liveByVideoId);
   }
 
@@ -328,12 +338,16 @@ body::after{
           },
           onStateChange: (e) => {
             log('onStateChange=' + e.data);
-            if (isLiveState(e.data)) noteLiveEvidence(true);
+            if (isLiveState(e.data)) {
+              lastPlayableAt = Date.now();
+              noteLiveEvidence(true);
+            }
           },
           onError: (e) => {
             log('onError=' + e.data);
-            // If embed is unavailable (150/101/100), force offair and keep probing.
+            lastErrorAt = Date.now();
             liveConfidenceStartedAt = null;
+            // error means not playable right now
             setMode('offair');
           }
         }
@@ -366,12 +380,37 @@ body::after{
     setTimeout(() => initPlayerNow(), 250);
   }
 
+  function hardRebuildIframe(){
+    log('HARD rebuild iframe');
+    const holder = document.getElementById('yt-holder');
+    holder.innerHTML = '<iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+    iframeEl = document.getElementById('yt-embed');
+    reloadIframe();
+    rebuildPlayerAfterReload();
+  }
+
   function startReloadLoop(){
     if (reloadTimer) return;
     reloadTimer = setInterval(() => {
+      const now = Date.now();
+      const recentlyPlayable = (now - lastPlayableAt) < config.stuckLiveMs;
+      const recentlyErrored  = (now - lastErrorAt) < config.stuckLiveMs;
+
       if (mode === 'offair'){
         reloadIframe();
         rebuildPlayerAfterReload();
+        return;
+      }
+
+      // If we're in LIVE mode but still not actually playable, self-heal like a refresh.
+      if (mode === 'live' && !recentlyPlayable){
+        log('LIVE but not playable -> self-heal');
+        if (recentlyErrored){
+          hardRebuildIframe();
+        } else {
+          reloadIframe();
+          rebuildPlayerAfterReload();
+        }
       }
     }, config.iframeReloadMs);
   }
