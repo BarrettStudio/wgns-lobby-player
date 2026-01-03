@@ -1,138 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WGNS Lobby</title>
-  <style>
-    :root{
-      --bg:#0b1220;
-      --panel:rgba(255,255,255,.92);
-      --border:rgba(255,255,255,.14);
-      --text:#0f172a;
-      --muted:rgba(15,23,42,.65);
-      --radius:18px;
-      --shadow:0 18px 48px rgba(0,0,0,.25);
-    }
-    html,body{height:100%}
-    body{
-      margin:0; min-height:100vh;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
-      color:var(--text);
-      background:
-        radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.22), transparent 60%),
-        radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.16), transparent 55%),
-        radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.10), transparent 60%),
-        var(--bg);
-      display:grid; place-items:center;
-      padding:clamp(14px,3vw,28px); box-sizing:border-box;
-    }
-    .wg-app{
-      width:min(1200px,100%);
-      height:min(720px,100%);
-      max-height:calc(100vh - clamp(28px, 6vw, 56px));
-      background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      display:flex; flex-direction:column;
-      backdrop-filter:blur(10px);
-    }
-    .wg-header{
-      display:flex; align-items:center; gap:14px;
-      padding:14px 16px;
-      border-bottom:1px solid rgba(15,23,42,.08);
-      background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
-      flex:0 0 auto;
-    }
-    .wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
-    .wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
-    .wg-brand .sub{font-size:.85rem; color:var(--muted)}
-    .wg-spacer{margin-left:auto}
-    .wg-badge{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:7px 10px; border-radius:999px;
-      border:1px solid rgba(15,23,42,.10);
-      background:rgba(255,255,255,.75);
-      font-weight:900;
-      color:rgba(15,23,42,.85);
-    }
-    .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
-    .dot.live{background:#22c55e}
-    .wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WGNS Lobby</title>
+<style>
+:root {
+  --bg:#0b1220;
+  --panel:rgba(255,255,255,.92);
+  --border:rgba(255,255,255,.14);
+  --text:#0f172a;
+  --muted:rgba(15,23,42,.65);
+  --radius:18px;
+  --shadow:0 18px 48px rgba(0,0,0,.25);
 
-    /* Video */
-    .wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
-    .wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
+  /* slideshow timing */
+  --slide-seconds: 8;  /* seconds per image */
+  --fade-seconds: 1.3; /* crossfade length */
+  --slides-count: 4;
+}
+html,body{height:100%}
+body{
+  margin:0; min-height:100vh;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+  color:var(--text);
+  background:
+    radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.22), transparent 60%),
+    radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.16), transparent 55%),
+    radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.10), transparent 60%),
+    var(--bg);
+  display:grid; place-items:center;
+  padding:clamp(14px,3vw,28px);
+  box-sizing:border-box;
+}
+.wg-app{
+  width:min(1200px,100%);
+  height:min(720px,100%);
+  max-height:calc(100vh - clamp(28px, 6vw, 56px));
+  background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  backdrop-filter:blur(10px);
+}
+.wg-header{
+  display:flex; align-items:center; gap:14px;
+  padding:14px 16px;
+  border-bottom:1px solid rgba(15,23,42,.08);
+  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
+  flex:0 0 auto;
+}
+.wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
+.wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
+.wg-brand .sub{font-size:.85rem; color:var(--muted)}
+.wg-spacer{margin-left:auto}
+.wg-badge{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:7px 10px; border-radius:999px;
+  border:1px solid rgba(15,23,42,.10);
+  background:rgba(255,255,255,.75);
+  font-weight:900;
+  color:rgba(15,23,42,.85);
+}
+.dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
+.dot.live{background:#22c55e}
+.wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
 
-    /* Off-air slideshow fills the same space as video (rounded corners included) */
-    .wg-slideshow{
-      position:relative;
-      width:100%; height:100%;
-      border-radius:16px;
-      overflow:hidden;
-      background:rgba(15,23,42,.06);
-      border:1px solid rgba(15,23,42,.10);
-      isolation:isolate;
-    }
-    .wg-slideshow::before{
-      content:"";
-      position:absolute; inset:0;
-      background:
-        radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.14), transparent 60%),
-        radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.10), transparent 60%),
-        radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
-      pointer-events:none;
-      z-index:2;
-      mix-blend-mode: soft-light;
-    }
-    .wg-slide{
-      position:absolute; inset:0;
-      opacity:0;
-      transition: opacity 1.15s ease-in-out;
-      z-index:1;
-    }
-    .wg-slide.is-active{opacity:1}
-    .wg-slide img{
-      width:100%;
-      height:100%;
-      object-fit: var(--fit-mode, contain); /* contain keeps logos intact; set to 'cover' if you want full-bleed */
-      object-position:center;
-      filter: drop-shadow(0 24px 40px rgba(0,0,0,.25));
-      transform: scale(1);
-    }
-    .wg-slide.is-active img{
-      animation: wgPulse 6s ease-in-out infinite;
-    }
-    @keyframes wgPulse{
-      0%   {transform: scale(1)}
-      50%  {transform: scale(1.03)}
-      100% {transform: scale(1)}
-    }
+/* Video */
+.wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
+.wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
 
-    @media (prefers-reduced-motion: reduce){
-      .wg-slide{transition:none}
-      .wg-slide.is-active img{animation:none}
-    }
-    @media (max-width:560px){.wg-badge{display:none}}
-  </style>
+/* Slideshow fills the same container as video */
+.wg-slideshow{
+  position:relative;
+  width:100%; height:100%;
+  border-radius:16px;
+  overflow:hidden;
+  background:#000;
+  border:1px solid rgba(15,23,42,.10);
+}
+.wg-slideshow::after{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.10), transparent 60%),
+    radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.10), transparent 60%),
+    radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
+  pointer-events:none;
+  mix-blend-mode:soft-light;
+}
+
+/* Each slide is FULL BLEED background (fills container & rounded corners) */
+.wg-slide{
+  position:absolute; inset:0;
+  background-size:cover;
+  background-position:center;
+  opacity:0;
+  animation-name: wgFadeLoop;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  /* duration set inline per-slide */
+}
+/* Subtle pulse/ken-burns */
+.wg-slide::before{
+  content:"";
+  position:absolute; inset:-4%;
+  background:inherit;
+  background-size:cover;
+  background-position:center;
+  transform:scale(1);
+  animation: wgPulseLoop 6s ease-in-out infinite;
+  filter:saturate(1.02);
+}
+/* prevent double darkening */
+.wg-slide{background-image:none}
+.wg-slide[data-src]{}
+.wg-slide[data-src]::before{background-image: var(--bgimg);}
+
+/* We will set --bgimg per-slide inline */
+@keyframes wgFadeLoop {
+  0% {opacity:0}
+  10% {opacity:1}
+  75% {opacity:1}
+  90% {opacity:0}
+  100%{opacity:0}
+}
+@keyframes wgPulseLoop {
+  0%{transform:scale(1)}
+  50%{transform:scale(1.04)}
+  100%{transform:scale(1)}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .wg-slide, .wg-slide::before{animation:none !important}
+  .wg-slide{opacity:1}
+}
+@media (max-width:560px){.wg-badge{display:none}}
+</style>
 </head>
 <body>
-  <main class="wg-app">
-    <header class="wg-header">
-      <div class="wg-brand">
-        <div class="title" id="wg-title">We’re Off Air (for now)</div>
-        <div class="sub" id="wg-sub">This screen switches to video automatically when we go LIVE.</div>
-      </div>
-      <div class="wg-spacer"></div>
-      <div class="wg-badge">
-        <span class="dot" id="wg-dot"></span>
-        <span id="wg-live-text">Checking…</span>
-      </div>
-    </header>
-    <section class="wg-body" id="wg-content"></section>
-  </main>
+<main class="wg-app">
+  <header class="wg-header">
+    <div class="wg-brand">
+      <div class="title" id="wg-title">We’re Off Air (for now)</div>
+      <div class="sub" id="wg-sub">This screen switches to video automatically when we go LIVE.</div>
+    </div>
+    <div class="wg-spacer"></div>
+    <div class="wg-badge">
+      <span class="dot" id="wg-dot"></span>
+      <span id="wg-live-text">Checking…</span>
+    </div>
+  </header>
+  <section class="wg-body" id="wg-content"></section>
+</main>
 
 <script>
 (() => {
@@ -141,17 +163,12 @@
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
     pollMs: 45000,
 
-    // Seconds each slide stays visible (cross-dissolve happens automatically)
-    slideSeconds: 10,
-
-    // 'contain' keeps artwork intact. Set to 'cover' if you want full-bleed cropping.
-    fitMode: 'contain',
-
+    slideSeconds: 8, // per image
     slides: [
-      { src: 'WGNS.png?v=1767421093', alt: 'WGNS' },
-      { src: 'BGTV.png?v=1767421093', alt: 'Big G TV' },
-      { src: 'PTS.png?v=1767421093',  alt: 'Primetime Sports' },
-      { src: 'RWX.png?v=1767421093',  alt: 'Rutherford Weather' },
+      'WGNS.png?v=1767421363',
+      'BGTV.png?v=1767421363',
+      'PTS.png?v=1767421363',
+      'RWX.png?v=1767421363'
     ]
   };
 
@@ -161,10 +178,8 @@
   const dot     = document.getElementById('wg-dot');
   const liveTxt = document.getElementById('wg-live-text');
 
-  let mode = 'offair'; // offair | watch
+  let mode = 'offair';
   let liveVideoId = null;
-  let slideTimer = null;
-  let activeIdx = 0;
 
   function setBadge(live){
     dot.classList.toggle('live', !!live);
@@ -179,47 +194,32 @@
     return 'https://www.youtube-nocookie.com/embed/live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1' + origin;
   }
 
-  function stopSlideshow(){
-    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
-  }
-
-  function startSlideshow(root){
-    stopSlideshow();
-    const slides = Array.from(root.querySelectorAll('.wg-slide'));
-    if (!slides.length) return;
-
-    // Ensure exactly one active
-    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
-
-    slideTimer = setInterval(() => {
-      const prev = activeIdx;
-      activeIdx = (activeIdx + 1) % slides.length;
-      slides[prev].classList.remove('is-active');
-      slides[activeIdx].classList.add('is-active');
-    }, Math.max(2000, config.slideSeconds * 1000));
-  }
-
   function renderOffAir(){
     mode = 'offair';
     titleEl.textContent = 'We’re Off Air (for now)';
     subEl.textContent = 'This screen switches to video automatically when we go LIVE.';
 
-    const slidesHtml = config.slides.map((s,i) => (
-      '<div class="wg-slide'+(i===0?' is-active':'')+'"><img src="'+s.src+'" alt="'+(s.alt||'')+'" /></div>'
-    )).join('');
+    const total = config.slides.length;
+    const duration = total * config.slideSeconds;
 
-    content.innerHTML = '<div class="wg-slideshow" id="wg-slideshow" style="--fit-mode:'+config.fitMode+'">'+slidesHtml+'</div>';
+    const slidesHtml = config.slides.map((src, i) => {
+      const delay = i * config.slideSeconds;
+      // use CSS variable for background image so ::before can inherit cleanly
+      return `<div class="wg-slide" style="
+        --bgimg: url('${src}');
+        animation-duration:${duration}s;
+        animation-delay:-${delay}s;
+      "></div>`;
+    }).join('');
 
-    const root = document.getElementById('wg-slideshow');
-    startSlideshow(root);
+    content.innerHTML = `<div class="wg-slideshow" style="--slides-count:${total}; --slide-seconds:${config.slideSeconds}">${slidesHtml}</div>`;
   }
 
   function renderWatch(){
     mode = 'watch';
     titleEl.textContent = 'Watch Live';
     subEl.textContent = 'You are watching the live stream.';
-    stopSlideshow();
-    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-con-picture" allowfullscreen src="'+videoEmbedSrc(liveVideoId)+'"></iframe></div>';
+    content.innerHTML = `<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="${videoEmbedSrc(liveVideoId)}"></iframe></div>`;
   }
 
   async function pollLive(){
@@ -227,26 +227,22 @@
       + encodeURIComponent(config.channelId)
       + '&eventType=live&type=video&maxResults=1&key='
       + encodeURIComponent(config.youtubeApiKey);
-
     try{
       const res = await fetch(url, {cache:'no-store'});
       if(!res.ok) throw new Error('HTTP '+res.status);
       const json = await res.json();
       const isLive = !!(json.items && json.items.length);
       liveVideoId = isLive ? (json.items[0].id && json.items[0].id.videoId) : null;
-
       setBadge(isLive);
-
       if (isLive && mode !== 'watch') renderWatch();
       if (!isLive && mode !== 'offair') renderOffAir();
     } catch(e) {
-      // Keep current mode; be conservative with badge
       setBadge(false);
     }
   }
 
-  // Preload slides
-  config.slides.forEach(s => { const i = new Image(); i.src = s.src; });
+  // preload
+  config.slides.forEach(src => { const i = new Image(); i.src = src; });
 
   renderOffAir();
   pollLive();
