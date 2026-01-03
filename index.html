@@ -49,7 +49,6 @@ body{
 }
 .wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
 .wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
-.wg-brand .sub{font-size:.85rem; color:var(--muted)}
 .wg-spacer{margin-left:auto}
 .wg-badge{
   display:inline-flex; align-items:center; gap:8px;
@@ -67,7 +66,7 @@ body{
 .wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
 .wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
 
-/* Slideshow fills the same container as video */
+/* Off-air slideshow (full-bleed, rounded corners) */
 .wg-slideshow{
   position:relative;
   width:100%; height:100%;
@@ -88,16 +87,14 @@ body{
   z-index:3;
 }
 
-/* Each slide is FULL BLEED background and crossfades */
 .wg-slide{
   position:absolute; inset:0;
   opacity:0;
-  animation-name: wgFadeLoop;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  transition: opacity 1.2s ease-in-out;
   z-index:1;
 }
-/* Full-bleed background with pulse */
+.wg-slide.is-active{opacity:1}
+
 .wg-slide::before{
   content:"";
   position:absolute; inset:-4%;
@@ -105,9 +102,17 @@ body{
   background-size:cover;
   background-position:center;
   transform:scale(1);
-  animation: wgPulseLoop 6s ease-in-out infinite;
   filter:saturate(1.02);
 }
+.wg-slide.is-active::before{
+  animation: wgPulse 6s ease-in-out infinite;
+}
+@keyframes wgPulse {
+  0%{transform:scale(1)}
+  50%{transform:scale(1.04)}
+  100%{transform:scale(1)}
+}
+
 .wg-slide::after{
   content:"";
   position:absolute; inset:0;
@@ -116,22 +121,9 @@ body{
   z-index:2;
 }
 
-@keyframes wgFadeLoop {
-  0% {opacity:0}
-  10% {opacity:1}
-  75% {opacity:1}
-  90% {opacity:0}
-  100%{opacity:0}
-}
-@keyframes wgPulseLoop {
-  0%{transform:scale(1)}
-  50%{transform:scale(1.04)}
-  100%{transform:scale(1)}
-}
-
 @media (prefers-reduced-motion: reduce){
-  .wg-slide, .wg-slide::before{animation:none !important}
-  .wg-slide{opacity:1}
+  .wg-slide{transition:none}
+  .wg-slide.is-active::before{animation:none}
 }
 @media (max-width:560px){.wg-badge{display:none}}
 </style>
@@ -140,8 +132,7 @@ body{
 <main class="wg-app">
   <header class="wg-header">
     <div class="wg-brand">
-      <div class="title" id="wg-title">We’re Off Air (for now)</div>
-      <div class="sub" id="wg-sub">This screen switches to video automatically when we go LIVE.</div>
+      <div class="title" id="wg-title">Big G TV is Off Air (for now)</div>
     </div>
     <div class="wg-spacer"></div>
     <div class="wg-badge">
@@ -158,23 +149,27 @@ body{
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
     pollMs: 45000,
+
     slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767421662',
-      'BGTV.png?v=1767421662',
-      'PTS.png?v=1767421662',
-      'RWX.png?v=1767421662'
+      'WGNS.png?v=1767421956',
+      'BGTV.png?v=1767421956',
+      'PTS.png?v=1767421956',
+      'RWX.png?v=1767421956'
     ]
   };
 
   const content = document.getElementById('wg-content');
   const titleEl = document.getElementById('wg-title');
-  const subEl   = document.getElementById('wg-sub');
   const dot     = document.getElementById('wg-dot');
   const liveTxt = document.getElementById('wg-live-text');
 
   let mode = 'offair';
   let liveVideoId = null;
+
+  // slideshow state
+  let slideTimer = null;
+  let activeIdx = 0;
 
   function setBadge(live){
     dot.classList.toggle('live', !!live);
@@ -189,30 +184,42 @@ body{
     return 'https://www.youtube-nocookie.com/embed/live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1' + origin;
   }
 
+  function stopSlideshow(){
+    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+  }
+
+  function startSlideshow(){
+    stopSlideshow();
+    const slides = Array.from(document.querySelectorAll('.wg-slide'));
+    if (!slides.length) return;
+
+    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
+
+    slideTimer = setInterval(() => {
+      const prev = activeIdx;
+      activeIdx = (activeIdx + 1) % slides.length;
+      slides[prev].classList.remove('is-active');
+      slides[activeIdx].classList.add('is-active');
+    }, Math.max(2000, config.slideSeconds * 1000));
+  }
+
   function renderOffAir(){
     mode = 'offair';
-    titleEl.textContent = 'We’re Off Air (for now)';
-    subEl.textContent = 'This screen switches to video automatically when we go LIVE.';
-
-    const total = config.slides.length;
-    const duration = total * config.slideSeconds;
+    titleEl.textContent = 'Big G TV is Off Air (for now)';
 
     const slidesHtml = config.slides.map((src, i) => {
-      const delay = i * config.slideSeconds;
-      return `<div class="wg-slide" style="
-        --bgimg: url(${src});
-        animation-duration:${duration}s;
-        animation-delay:-${delay}s;
-      "></div>`;
+      return `<div class="wg-slide${i===0?' is-active':''}" style="--bgimg: url('${src}');"></div>`;
     }).join('');
 
     content.innerHTML = `<div class="wg-slideshow">${slidesHtml}</div>`;
+    activeIdx = 0;
+    startSlideshow();
   }
 
   function renderWatch(){
     mode = 'watch';
     titleEl.textContent = 'Watch Live';
-    subEl.textContent = 'You are watching the live stream.';
+    stopSlideshow();
     content.innerHTML = `<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="${videoEmbedSrc(liveVideoId)}"></iframe></div>`;
   }
 
@@ -227,7 +234,9 @@ body{
       const json = await res.json();
       const isLive = !!(json.items && json.items.length);
       liveVideoId = isLive ? (json.items[0].id && json.items[0].id.videoId) : null;
+
       setBadge(isLive);
+
       if (isLive && mode !== 'watch') renderWatch();
       if (!isLive && mode !== 'offair') renderOffAir();
     } catch(e) {
