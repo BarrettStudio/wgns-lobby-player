@@ -177,22 +177,21 @@ body::after{
 </main>
 
 <script>
-/**
- * v14: Fixes "no debug / no YT ready" by not relying solely on onYouTubeIframeAPIReady.
- * We bootstrap via a polling init as a fallback (some browsers/extensions swallow the callback).
- */
 (() => {
+  const CACHE_BUST = '1767425252';
+
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    iframeReloadMs: 15000,
-    detectPollMs: 1200,
-    slideSeconds: 8,
+    iframeReloadMs: 12000,
+    detectPollMs: 900,
+    settleLiveMs: 3500,
     slides: [
-      'WGNS.png?v=1767424820',
-      'BGTV.png?v=1767424820',
-      'PTS.png?v=1767424820',
-      'RWX.png?v=1767424820'
-    ]
+      'WGNS.png?v=' + CACHE_BUST,
+      'BGTV.png?v=' + CACHE_BUST,
+      'PTS.png?v=' + CACHE_BUST,
+      'RWX.png?v=' + CACHE_BUST
+    ],
+    slideSeconds: 8
   };
 
   const titleEl = document.getElementById('wg-title');
@@ -212,6 +211,8 @@ body::after{
   let detectTimer = null;
   let initTimer = null;
 
+  let liveConfidenceStartedAt = null;
+
   // slideshow
   let slideTimer = null;
   let activeIdx = 0;
@@ -219,7 +220,7 @@ body::after{
   function log(msg){
     if (!debugOn) return;
     const ts = new Date().toLocaleTimeString();
-    dbg.textContent = `[${ts}] ${msg}\n` + dbg.textContent.slice(0, 1700);
+    dbg.textContent = '[' + ts + '] ' + msg + '\n' + dbg.textContent.slice(0, 1700);
   }
 
   function setUI(live){
@@ -233,12 +234,12 @@ body::after{
     if (mode === next) return;
     mode = next;
     setUI(mode === 'live');
-    log(`MODE => ${mode}`);
+    log('MODE => ' + mode);
   }
 
   function renderSlides(){
     const slidesHtml = config.slides.map((src, i) =>
-      `<div class="wg-slide${i===0?' is-active':''}" style="--bgimg: url('${src}');"></div>`
+      '<div class="wg-slide' + (i===0?' is-active':'') + '" style="--bgimg: url(\'' + src + '\');"></div>'
     ).join('');
     slideshowWrap.innerHTML = slidesHtml;
     activeIdx = 0;
@@ -259,7 +260,6 @@ body::after{
   function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
 
   function liveIframeSrc(){
-    // This is the embed variant that you confirmed works.
     return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
       + encodeURIComponent(config.channelId)
       + '&autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
@@ -270,7 +270,29 @@ body::after{
     log('iframe reload');
   }
 
-  function isLiveState(s){ return s === 1 || s === 3; }
+  function isLiveState(s){ return s === 1 || s === 3; } // playing/buffering
+
+  function isRealVideoId(vid){
+    if (!vid) return false;
+    if (vid === 'live_stream') return false; // placeholder
+    if (vid.length < 10) return false;
+    return true;
+  }
+
+  function noteLiveEvidence(isLive){
+    const now = Date.now();
+    if (isLive){
+      if (!liveConfidenceStartedAt) liveConfidenceStartedAt = now;
+      const elapsedMs = now - liveConfidenceStartedAt;
+      log('live evidence ' + (elapsedMs/1000).toFixed(1) + 's');
+      if (elapsedMs >= config.settleLiveMs){
+        setMode('live');
+      }
+    } else {
+      liveConfidenceStartedAt = null;
+      setMode('offair');
+    }
+  }
 
   function detectLive(){
     if (!player) return;
@@ -281,10 +303,13 @@ body::after{
       const vd = player.getVideoData && player.getVideoData();
       vid = (vd && (vd.video_id || vd.videoId)) ? (vd.video_id || vd.videoId) : '';
     } catch(e){}
-    log(`state=${st} vid=${vid||'(none)'}`);
-    if (vid && vid.length > 5) return setMode('live');
-    if (typeof st === 'number' && isLiveState(st)) return setMode('live');
-    setMode('offair');
+
+    const liveByState = (typeof st === 'number') && isLiveState(st);
+    const liveByVideoId = isRealVideoId(vid);
+
+    log('state=' + st + ' vid=' + (vid||'(none)') + ' liveByState=' + liveByState + ' liveByVid=' + liveByVideoId);
+
+    noteLiveEvidence(liveByState || liveByVideoId);
   }
 
   function initPlayerNow(){
@@ -297,15 +322,19 @@ body::after{
         events: {
           onReady: (e) => {
             log('YT ready');
+            try { e.target.mute(); } catch(_e){}
             try { e.target.playVideo(); } catch(_e){}
             if (!detectTimer) detectTimer = setInterval(detectLive, config.detectPollMs);
           },
           onStateChange: (e) => {
             log('onStateChange=' + e.data);
-            if (isLiveState(e.data)) setMode('live');
+            if (isLiveState(e.data)) noteLiveEvidence(true);
           },
           onError: (e) => {
             log('onError=' + e.data);
+            // If embed is unavailable (150/101/100), force offair and keep probing.
+            liveConfidenceStartedAt = null;
+            setMode('offair');
           }
         }
       });
@@ -320,7 +349,7 @@ body::after{
     if (initTimer) return;
     initTimer = setInterval(() => {
       const ok = initPlayerNow();
-      if (ok) {
+      if (ok){
         clearInterval(initTimer);
         initTimer = null;
         log('YT init fallback success');
@@ -328,34 +357,31 @@ body::after{
     }, 500);
   }
 
+  function rebuildPlayerAfterReload(){
+    if (player && player.destroy){
+      try { player.destroy(); } catch(_e){}
+    }
+    player = null;
+    liveConfidenceStartedAt = null;
+    setTimeout(() => initPlayerNow(), 250);
+  }
+
   function startReloadLoop(){
     if (reloadTimer) return;
     reloadTimer = setInterval(() => {
-      if (mode === 'offair') {
-        // Reload and re-create player so it can attach to the refreshed iframe.
+      if (mode === 'offair'){
         reloadIframe();
-        // If the player is stuck, rebuild it.
-        if (player && player.destroy) {
-          try { player.destroy(); } catch(_e){}
-          player = null;
-          log('player destroyed for reload');
-        }
-        // Re-init player after reload
-        setTimeout(() => initPlayerNow(), 250);
+        rebuildPlayerAfterReload();
       }
     }, config.iframeReloadMs);
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
+    if (!document.hidden){
       log('visible -> reload');
       reloadIframe();
-      if (player && player.destroy) {
-        try { player.destroy(); } catch(_e){}
-        player = null;
-      }
-      setTimeout(() => initPlayerNow(), 250);
-      setTimeout(() => detectLive(), 900);
+      rebuildPlayerAfterReload();
+      setTimeout(() => detectLive(), 1000);
     }
   });
 
@@ -370,13 +396,11 @@ body::after{
   s.async = true;
   document.head.appendChild(s);
 
-  // Normal callback (if it fires)
   window.onYouTubeIframeAPIReady = () => {
-    log('YT IFrame API ready (callback)');
+    log('YT IFrame API ready');
     initPlayerNow();
   };
 
-  // Fallback init (if callback doesn't fire / slow)
   startInitFallback();
   startReloadLoop();
 })();
