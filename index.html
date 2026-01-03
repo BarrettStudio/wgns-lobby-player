@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WGNS Lobby Live</title>
+  <title>WGNS Lobby</title>
   <style>
     :root{
       --bg:#0b1220;
@@ -66,7 +66,7 @@
     .wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
     .wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
 
-    /* Off-air slideshow */
+    /* Off-air slideshow fills the same space as video (rounded corners included) */
     .wg-slideshow{
       position:relative;
       width:100%; height:100%;
@@ -76,47 +76,34 @@
       border:1px solid rgba(15,23,42,.10);
       isolation:isolate;
     }
-    .wg-slide{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      padding:clamp(16px,2.5vw,28px);
-      opacity:0;
-      animation-name: wgFade;
-      animation-timing-function: ease-in-out;
-      animation-iteration-count: infinite;
-      animation-duration: calc(var(--slide-seconds) * 4s);
-    }
-    .wg-slide::before{
+    .wg-slideshow::before{
       content:"";
       position:absolute; inset:0;
       background:
-        radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.22), transparent 60%),
-        radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.12), transparent 60%),
+        radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.14), transparent 60%),
+        radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.10), transparent 60%),
         radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
       pointer-events:none;
+      z-index:2;
       mix-blend-mode: soft-light;
     }
+    .wg-slide{
+      position:absolute; inset:0;
+      opacity:0;
+      transition: opacity 1.15s ease-in-out;
+      z-index:1;
+    }
+    .wg-slide.is-active{opacity:1}
     .wg-slide img{
-      width:min(100%, 980px);
-      height:auto;
-      max-height:100%;
-      object-fit:contain;
+      width:100%;
+      height:100%;
+      object-fit: var(--fit-mode, contain); /* contain keeps logos intact; set to 'cover' if you want full-bleed */
+      object-position:center;
       filter: drop-shadow(0 24px 40px rgba(0,0,0,.25));
       transform: scale(1);
-      animation: wgPulse calc(var(--slide-seconds) * 1s) ease-in-out infinite;
     }
-
-    .wg-slide:nth-child(1){animation-delay: calc(var(--slide-seconds) * 0s);}
-    .wg-slide:nth-child(2){animation-delay: calc(var(--slide-seconds) * 1s);}
-    .wg-slide:nth-child(3){animation-delay: calc(var(--slide-seconds) * 2s);}
-    .wg-slide:nth-child(4){animation-delay: calc(var(--slide-seconds) * 3s);}
-
-    @keyframes wgFade{
-      0%   {opacity:0}
-      10%  {opacity:1}
-      75%  {opacity:1}
-      90%  {opacity:0}
-      100% {opacity:0}
+    .wg-slide.is-active img{
+      animation: wgPulse 6s ease-in-out infinite;
     }
     @keyframes wgPulse{
       0%   {transform: scale(1)}
@@ -125,20 +112,18 @@
     }
 
     @media (prefers-reduced-motion: reduce){
-      .wg-slide, .wg-slide img{animation:none !important}
-      .wg-slide{opacity:1; position:relative}
+      .wg-slide{transition:none}
+      .wg-slide.is-active img{animation:none}
     }
-    @media (max-width:560px){
-      .wg-badge{display:none}
-    }
+    @media (max-width:560px){.wg-badge{display:none}}
   </style>
 </head>
 <body>
   <main class="wg-app">
     <header class="wg-header">
       <div class="wg-brand">
-        <div class="title" id="wg-mode-label">Checking live status…</div>
-        <div class="sub" id="wg-sub">Off-air slideshow plays until we go LIVE.</div>
+        <div class="title" id="wg-title">We’re Off Air (for now)</div>
+        <div class="sub" id="wg-sub">This screen switches to video automatically when we go LIVE.</div>
       </div>
       <div class="wg-spacer"></div>
       <div class="wg-badge">
@@ -156,29 +141,34 @@
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
     pollMs: 45000,
 
-    // Seconds each slide stays on-screen (recommend 8–12)
+    // Seconds each slide stays visible (cross-dissolve happens automatically)
     slideSeconds: 10,
 
+    // 'contain' keeps artwork intact. Set to 'cover' if you want full-bleed cropping.
+    fitMode: 'contain',
+
     slides: [
-      { src: 'WGNS.png', alt: 'WGNS' },
-      { src: 'BGTV.png', alt: 'Big G TV' },
-      { src: 'PTS.png',  alt: 'Primetime Sports' },
-      { src: 'RWX.png',  alt: 'Rutherford Weather' },
+      { src: 'WGNS.png?v=1767421093', alt: 'WGNS' },
+      { src: 'BGTV.png?v=1767421093', alt: 'Big G TV' },
+      { src: 'PTS.png?v=1767421093',  alt: 'Primetime Sports' },
+      { src: 'RWX.png?v=1767421093',  alt: 'Rutherford Weather' },
     ]
   };
 
-  const content   = document.getElementById('wg-content');
-  const modeLabel = document.getElementById('wg-mode-label');
-  const sub       = document.getElementById('wg-sub');
-  const dot       = document.getElementById('wg-dot');
-  const liveText  = document.getElementById('wg-live-text');
+  const content = document.getElementById('wg-content');
+  const titleEl = document.getElementById('wg-title');
+  const subEl   = document.getElementById('wg-sub');
+  const dot     = document.getElementById('wg-dot');
+  const liveTxt = document.getElementById('wg-live-text');
 
   let mode = 'offair'; // offair | watch
   let liveVideoId = null;
+  let slideTimer = null;
+  let activeIdx = 0;
 
   function setBadge(live){
     dot.classList.toggle('live', !!live);
-    liveText.textContent = live ? 'LIVE' : 'Off Air';
+    liveTxt.textContent = live ? 'LIVE' : 'Off Air';
   }
 
   function videoEmbedSrc(vid){
@@ -189,21 +179,47 @@
     return 'https://www.youtube-nocookie.com/embed/live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1' + origin;
   }
 
-  function renderWatch(){
-    mode = 'watch';
-    modeLabel.textContent = 'Watch Live';
-    sub.textContent = 'You are watching the live stream.';
-    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="'+videoEmbedSrc(liveVideoId)+'"></iframe></div>';
+  function stopSlideshow(){
+    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+  }
+
+  function startSlideshow(root){
+    stopSlideshow();
+    const slides = Array.from(root.querySelectorAll('.wg-slide'));
+    if (!slides.length) return;
+
+    // Ensure exactly one active
+    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
+
+    slideTimer = setInterval(() => {
+      const prev = activeIdx;
+      activeIdx = (activeIdx + 1) % slides.length;
+      slides[prev].classList.remove('is-active');
+      slides[activeIdx].classList.add('is-active');
+    }, Math.max(2000, config.slideSeconds * 1000));
   }
 
   function renderOffAir(){
     mode = 'offair';
-    modeLabel.textContent = 'We’re Off Air (for now)';
-    sub.textContent = 'This display will switch to video automatically when we go LIVE.';
-    const slidesHtml = config.slides.map(s => (
-      '<div class="wg-slide"><img src="'+s.src+'" alt="'+(s.alt||'')+'" /></div>'
+    titleEl.textContent = 'We’re Off Air (for now)';
+    subEl.textContent = 'This screen switches to video automatically when we go LIVE.';
+
+    const slidesHtml = config.slides.map((s,i) => (
+      '<div class="wg-slide'+(i===0?' is-active':'')+'"><img src="'+s.src+'" alt="'+(s.alt||'')+'" /></div>'
     )).join('');
-    content.innerHTML = '<div class="wg-slideshow" style="--slide-seconds:'+config.slideSeconds+'">'+slidesHtml+'</div>';
+
+    content.innerHTML = '<div class="wg-slideshow" id="wg-slideshow" style="--fit-mode:'+config.fitMode+'">'+slidesHtml+'</div>';
+
+    const root = document.getElementById('wg-slideshow');
+    startSlideshow(root);
+  }
+
+  function renderWatch(){
+    mode = 'watch';
+    titleEl.textContent = 'Watch Live';
+    subEl.textContent = 'You are watching the live stream.';
+    stopSlideshow();
+    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-con-picture" allowfullscreen src="'+videoEmbedSrc(liveVideoId)+'"></iframe></div>';
   }
 
   async function pollLive(){
@@ -223,8 +239,8 @@
 
       if (isLive && mode !== 'watch') renderWatch();
       if (!isLive && mode !== 'offair') renderOffAir();
-    }catch(e){
-      // If the check fails, keep current mode and badge conservative.
+    } catch(e) {
+      // Keep current mode; be conservative with badge
       setBadge(false);
     }
   }
