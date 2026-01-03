@@ -99,7 +99,8 @@ body::after{
   transition: opacity .7s ease-in-out;
 }
 .wg-video.is-on{opacity:1}
-.wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
+#yt-holder{position:absolute; inset:0}
+#yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
 
 /* Slideshow layer */
 .wg-slideshow{
@@ -167,10 +168,8 @@ body::after{
   </header>
 
   <section class="wg-body">
-    <div class="wg-stage" id="wg-stage">
-      <div class="wg-video" id="wg-video">
-        <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-      </div>
+    <div class="wg-stage">
+      <div class="wg-video" id="wg-video"><div id="yt-holder"></div></div>
       <div class="wg-slideshow" id="wg-slideshow"></div>
     </div>
   </section>
@@ -182,19 +181,19 @@ body::after{
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
 
-    // how often we "poke" the live embed while off-air (no API key needed)
-    offAirReloadMs: 20000,
+    // How often to re-check live by rebuilding the player while off-air
+    probeMs: 15000,
 
-    // how often we check player state once mounted
-    statePollMs: 1500,
+    // How long we wait after building a player before deciding "still off-air"
+    probeTimeoutMs: 6500,
 
     // slideshow
     slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767422788',
-      'BGTV.png?v=1767422788',
-      'PTS.png?v=1767422788',
-      'RWX.png?v=1767422788'
+      'WGNS.png?v=1767423229',
+      'BGTV.png?v=1767423229',
+      'PTS.png?v=1767423229',
+      'RWX.png?v=1767423229'
     ]
   };
 
@@ -203,14 +202,16 @@ body::after{
   const liveTxt = document.getElementById('wg-live-text');
   const videoWrap = document.getElementById('wg-video');
   const slideshowWrap = document.getElementById('wg-slideshow');
-  const iframeEl = document.getElementById('yt-embed');
+  const ytHolder = document.getElementById('yt-holder');
 
-  let ytPlayer = null;
   let mode = 'offair'; // offair | live
+  let ytPlayer = null;
+  let probeTimer = null;
+  let probeTimeout = null;
+
+  // slideshow state
   let slideTimer = null;
   let activeIdx = 0;
-  let offAirReloadTimer = null;
-  let statePollTimer = null;
 
   function setUI(live){
     dot.classList.toggle('live', !!live);
@@ -220,20 +221,11 @@ body::after{
     slideshowWrap.classList.toggle('is-off', !!live);
   }
 
-  function startSlideshow(){
-    stopSlideshow();
-    const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
-    if (!slides.length) return;
-
-    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
-    slideTimer = setInterval(() => {
-      const prev = activeIdx;
-      activeIdx = (activeIdx + 1) % slides.length;
-      slides[prev].classList.remove('is-active');
-      slides[activeIdx].classList.add('is-active');
-    }, Math.max(2000, config.slideSeconds * 1000));
+  function setMode(next){
+    if (mode === next) return;
+    mode = next;
+    setUI(mode === 'live');
   }
-  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
 
   function renderSlides(){
     const slidesHtml = config.slides.map((src, i) =>
@@ -244,107 +236,106 @@ body::after{
     startSlideshow();
   }
 
-  function liveEmbedSrc(){
-    // Cache-bust the iframe so it will re-check if the channel has gone live.
-    const bust = Date.now();
-    const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
-    return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
-      + encodeURIComponent(config.channelId)
-      + '&autoplay=1&mute=1&playsinline=1&rel=0'
-      + origin
-      + '&_=' + bust;
+  function startSlideshow(){
+    stopSlideshow();
+    const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
+    if (!slides.length) return;
+    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
+    slideTimer = setInterval(() => {
+      const prev = activeIdx;
+      activeIdx = (activeIdx + 1) % slides.length;
+      slides[prev].classList.remove('is-active');
+      slides[activeIdx].classList.add('is-active');
+    }, Math.max(2000, config.slideSeconds * 1000));
+  }
+  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
+
+  function destroyPlayer(){
+    if (probeTimeout) { clearTimeout(probeTimeout); probeTimeout=null; }
+    if (ytPlayer && ytPlayer.destroy) {
+      try { ytPlayer.destroy(); } catch(e){}
+    }
+    ytPlayer = null;
+    ytHolder.innerHTML = '<div id="yt-player"></div>';
   }
 
-  function ensureIframeLoaded(){
-    iframeEl.src = liveEmbedSrc();
+  function markLive(){
+    setMode('live');
+    // stop probing once live
+    if (probeTimer) { clearInterval(probeTimer); probeTimer=null; }
+    if (probeTimeout) { clearTimeout(probeTimeout); probeTimeout=null; }
   }
 
-  function setMode(next){
-    if (mode === next) return;
-    mode = next;
-    setUI(mode === 'live');
-
-    if (mode === 'live') {
-      // Stop reloading/poking while live
-      if (offAirReloadTimer) { clearInterval(offAirReloadTimer); offAirReloadTimer=null; }
-    } else {
-      // When off-air, keep poking the iframe so it auto-switches when live starts
-      if (!offAirReloadTimer) {
-        offAirReloadTimer = setInterval(() => {
-          // Reload the iframe only if we're still off-air
-          if (mode === 'offair') ensureIframeLoaded();
-        }, config.offAirReloadMs);
-      }
+  function handleState(state){
+    // 1 = PLAYING, 3 = BUFFERING (good enough for "live")
+    if (state === 1 || state === 3) {
+      markLive();
     }
   }
 
-  function isProbablyLiveState(state){
-    // 1 = PLAYING, 3 = BUFFERING
-    return state === 1 || state === 3;
-  }
+  function buildProbePlayer(){
+    // Rebuild player fresh each probe so it can latch on when the channel goes live.
+    destroyPlayer();
 
-  function startStatePolling(){
-    if (statePollTimer) return;
-    statePollTimer = setInterval(() => {
-      if (!ytPlayer || !ytPlayer.getPlayerState) return;
-      let st;
-      try { st = ytPlayer.getPlayerState(); } catch(e) { return; }
-      if (isProbablyLiveState(st)) {
-        setMode('live');
-      } else {
-        // If it's not playing/buffering, treat as off-air
-        setMode('offair');
-      }
-    }, config.statePollMs);
-  }
-
-  function initYT(){
-    ensureIframeLoaded();
-
-    // Mount YT player on the iframe so we can read player state.
+    // Use listType=live_stream so we don't need videoId or Data API.
+    // This method tends to work reliably for channel live playback.
     try {
-      ytPlayer = new YT.Player('yt-embed', {
+      ytPlayer = new YT.Player('yt-player', {
+        width: '100%',
+        height: '100%',
+        playerVars: {
+          autoplay: 1,
+          mute: 1,
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          enablejsapi: 1,
+          origin: (location.origin && location.origin !== 'null') ? location.origin : undefined,
+          listType: 'live_stream',
+          list: config.channelId
+        },
         events: {
-          onReady: () => {
-            // On ready, start polling state
-            startStatePolling();
+          onReady: (e) => {
+            // Try to start playback (muted autoplay should be allowed on lobby PCs).
+            try { e.target.playVideo(); } catch(_e){}
+            // If it doesn't become PLAYING/BUFFERING quickly, assume still off-air and keep slideshow.
+            probeTimeout = setTimeout(() => {
+              if (mode !== 'live') setMode('offair');
+            }, config.probeTimeoutMs);
           },
-          onStateChange: (e) => {
-            if (isProbablyLiveState(e.data)) setMode('live');
-            // -1 unstarted, 0 ended, 2 paused, 5 cued => likely off-air
-            if (e.data === -1 || e.data === 0 || e.data === 2 || e.data === 5) setMode('offair');
-          },
+          onStateChange: (e) => handleState(e.data),
           onError: () => {
-            // Off-air or blocked: show slideshow and keep poking
+            // Off-air or some transient error: keep off-air and continue probing.
             setMode('offair');
           }
         }
       });
     } catch(e) {
-      // If player init fails, we still keep reloading iframe.
       setMode('offair');
     }
   }
 
-  // Run
+  function startProbing(){
+    if (probeTimer) return;
+    // First probe immediately
+    buildProbePlayer();
+    probeTimer = setInterval(() => {
+      if (mode === 'offair') buildProbePlayer();
+    }, config.probeMs);
+  }
+
+  // Wake/focus: probe immediately
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && mode === 'offair' && window.YT && YT.Player) buildProbePlayer();
+  });
+
+  // Boot
   renderSlides();
   setMode('offair');
 
-  // Re-check quickly after wake / tab focus (lobby PCs)
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      ensureIframeLoaded();
-      if (ytPlayer && ytPlayer.playVideo) { try { ytPlayer.playVideo(); } catch(e){} }
-    }
-  });
-
-  // YouTube API callback
-  window.onYouTubeIframeAPIReady = initYT;
-
-  // Safety: if YT API doesn't load for some reason, still reload iframe periodically
-  offAirReloadTimer = setInterval(() => {
-    if (mode === 'offair') ensureIframeLoaded();
-  }, config.offAirReloadMs);
+  window.onYouTubeIframeAPIReady = () => {
+    startProbing();
+  };
 })();
 </script>
 </body>
