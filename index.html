@@ -10,24 +10,47 @@
   --panel:rgba(255,255,255,.92);
   --border:rgba(255,255,255,.14);
   --text:#0f172a;
-  --muted:rgba(15,23,42,.65);
   --radius:18px;
   --shadow:0 18px 48px rgba(0,0,0,.25);
 }
 html,body{height:100%}
 body{
   margin:0; min-height:100vh;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
   color:var(--text);
-  background:
-    radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.22), transparent 60%),
-    radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.16), transparent 55%),
-    radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.10), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   display:grid; place-items:center;
   padding:clamp(14px,3vw,28px);
   box-sizing:border-box;
+  position:relative;
+  overflow:hidden;
 }
+/* Animated blur background layer */
+body::before{
+  content:"";
+  position:absolute;
+  inset:-18%;
+  background:
+    radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.24), transparent 60%),
+    radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.18), transparent 55%),
+    radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.12), transparent 60%);
+  filter: blur(28px);
+  transform: translate3d(0,0,0) scale(1.10);
+  animation: bgDrift 18s ease-in-out infinite alternate;
+  z-index:-1;
+}
+body::after{
+  content:"";
+  position:absolute; inset:0;
+  background: radial-gradient(1200px 700px at 50% 40%, rgba(0,0,0,0), rgba(0,0,0,.30));
+  z-index:-1;
+}
+@keyframes bgDrift{
+  0%   { transform: translate3d(-2.5%, -1.5%, 0) scale(1.10); opacity:.95; }
+  50%  { transform: translate3d(2.5%, 1.2%, 0) scale(1.12); opacity:1; }
+  100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
+}
+
 .wg-app{
   width:min(1200px,100%);
   height:min(720px,100%);
@@ -47,8 +70,7 @@ body{
   background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
   flex:0 0 auto;
 }
-.wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
-.wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
+.wg-title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
 .wg-spacer{margin-left:auto}
 .wg-badge{
   display:inline-flex; align-items:center; gap:8px;
@@ -104,14 +126,8 @@ body{
   transform:scale(1);
   filter:saturate(1.02);
 }
-.wg-slide.is-active::before{
-  animation: wgPulse 6s ease-in-out infinite;
-}
-@keyframes wgPulse {
-  0%{transform:scale(1)}
-  50%{transform:scale(1.04)}
-  100%{transform:scale(1)}
-}
+.wg-slide.is-active::before{ animation: wgPulse 6s ease-in-out infinite; }
+@keyframes wgPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
 
 .wg-slide::after{
   content:"";
@@ -122,6 +138,7 @@ body{
 }
 
 @media (prefers-reduced-motion: reduce){
+  body::before{animation:none}
   .wg-slide{transition:none}
   .wg-slide.is-active::before{animation:none}
 }
@@ -131,9 +148,7 @@ body{
 <body>
 <main class="wg-app">
   <header class="wg-header">
-    <div class="wg-brand">
-      <div class="title" id="wg-title">Big G TV is Off Air (for now)</div>
-    </div>
+    <div class="wg-title" id="wg-title"></div>
     <div class="wg-spacer"></div>
     <div class="wg-badge">
       <span class="dot" id="wg-dot"></span>
@@ -148,14 +163,16 @@ body{
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
-    pollMs: 45000,
+
+    // Faster detection so "going live" doesn't feel broken.
+    pollMs: 15000,
 
     slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767421956',
-      'BGTV.png?v=1767421956',
-      'PTS.png?v=1767421956',
-      'RWX.png?v=1767421956'
+      'WGNS.png?v=1767422429',
+      'BGTV.png?v=1767422429',
+      'PTS.png?v=1767422429',
+      'RWX.png?v=1767422429'
     ]
   };
 
@@ -178,10 +195,12 @@ body{
 
   function videoEmbedSrc(vid){
     const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
+    const base = 'https://www.youtube-nocookie.com/embed/';
     if (vid){
-      return 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&mute=1&playsinline=1' + origin;
+      return base + encodeURIComponent(vid) + '?autoplay=1&mute=1&playsinline=1&rel=0' + origin;
     }
-    return 'https://www.youtube-nocookie.com/embed/live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1' + origin;
+    // fallback if we somehow have no videoId
+    return base + 'live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1&rel=0' + origin;
   }
 
   function stopSlideshow(){
@@ -218,7 +237,7 @@ body{
 
   function renderWatch(){
     mode = 'watch';
-    titleEl.textContent = 'Watch Live';
+    titleEl.textContent = 'Big G TV • LIVE';
     stopSlideshow();
     content.innerHTML = `<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="${videoEmbedSrc(liveVideoId)}"></iframe></div>`;
   }
@@ -228,6 +247,7 @@ body{
       + encodeURIComponent(config.channelId)
       + '&eventType=live&type=video&maxResults=1&key='
       + encodeURIComponent(config.youtubeApiKey);
+
     try{
       const res = await fetch(url, {cache:'no-store'});
       if(!res.ok) throw new Error('HTTP '+res.status);
@@ -240,9 +260,16 @@ body{
       if (isLive && mode !== 'watch') renderWatch();
       if (!isLive && mode !== 'offair') renderOffAir();
     } catch(e) {
+      // If the API fails, DO NOT block switching forever; keep the current mode.
+      // Also show Off Air badge instead of "Checking…"
       setBadge(false);
     }
   }
+
+  // Poll immediately when the tab becomes visible again (helps lobby PCs waking up)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pollLive();
+  });
 
   // preload
   config.slides.forEach(src => { const i = new Image(); i.src = src; });
