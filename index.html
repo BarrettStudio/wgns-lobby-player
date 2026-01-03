@@ -25,11 +25,10 @@ body{
   position:relative;
   overflow:hidden;
 }
-/* Animated blur background layer */
+/* Animated blur background */
 body::before{
   content:"";
-  position:absolute;
-  inset:-18%;
+  position:absolute; inset:-18%;
   background:
     radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.24), transparent 60%),
     radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.18), transparent 55%),
@@ -92,17 +91,14 @@ body::after{
   background:#000;
   border:1px solid rgba(15,23,42,.10);
 }
-/* Video layer (stays mounted, we just fade it in/out) */
 .wg-video{
   position:absolute; inset:0;
   opacity:0;
   transition: opacity .7s ease-in-out;
 }
 .wg-video.is-on{opacity:1}
-#yt-holder{position:absolute; inset:0}
-#yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
+.wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
 
-/* Slideshow layer */
 .wg-slideshow{
   position:absolute; inset:0;
   opacity:1;
@@ -147,6 +143,21 @@ body::after{
   z-index:2;
 }
 
+/* Debug HUD (enable with #debug in URL) */
+.wg-debug{
+  position:absolute; left:12px; bottom:12px;
+  max-width:min(720px, calc(100% - 24px));
+  padding:10px 12px;
+  border-radius:12px;
+  background:rgba(0,0,0,.55);
+  color:rgba(255,255,255,.92);
+  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  display:none;
+  z-index:10;
+  white-space:pre-wrap;
+}
+.wg-debug.on{display:block}
+
 @media (prefers-reduced-motion: reduce){
   body::before{animation:none}
   .wg-slide{transition:none}
@@ -169,8 +180,11 @@ body::after{
 
   <section class="wg-body">
     <div class="wg-stage">
-      <div class="wg-video" id="wg-video"><div id="yt-holder"></div></div>
+      <div class="wg-video" id="wg-video">
+        <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
       <div class="wg-slideshow" id="wg-slideshow"></div>
+      <div class="wg-debug" id="wg-debug"></div>
     </div>
   </section>
 </main>
@@ -180,20 +194,20 @@ body::after{
 (() => {
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
+    youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
 
-    // How often to re-check live by rebuilding the player while off-air
-    probeMs: 15000,
+    // Data API poll (worked earlier for you)
+    apiPollMs: 15000,
 
-    // How long we wait after building a player before deciding "still off-air"
-    probeTimeoutMs: 6500,
+    // Fallback probe (in case API fails / returns empty)
+    probeMs: 20000,
 
-    // slideshow
     slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767423229',
-      'BGTV.png?v=1767423229',
-      'PTS.png?v=1767423229',
-      'RWX.png?v=1767423229'
+      'WGNS.png?v=1767423572',
+      'BGTV.png?v=1767423572',
+      'PTS.png?v=1767423572',
+      'RWX.png?v=1767423572'
     ]
   };
 
@@ -202,18 +216,30 @@ body::after{
   const liveTxt = document.getElementById('wg-live-text');
   const videoWrap = document.getElementById('wg-video');
   const slideshowWrap = document.getElementById('wg-slideshow');
-  const ytHolder = document.getElementById('yt-holder');
+  const iframeEl = document.getElementById('yt-embed');
+  const dbg = document.getElementById('wg-debug');
+
+  const debugOn = location.hash.includes('debug');
+  if (debugOn) dbg.classList.add('on');
 
   let mode = 'offair'; // offair | live
-  let ytPlayer = null;
-  let probeTimer = null;
-  let probeTimeout = null;
+  let liveVideoId = null;
 
-  // slideshow state
+  // slideshow
   let slideTimer = null;
   let activeIdx = 0;
 
-  function setUI(live){
+  // YT player for fallback probe
+  let ytPlayer = null;
+  let probeTimer = null;
+
+  function log(msg) {
+    if (!debugOn) return;
+    const ts = new Date().toLocaleTimeString();
+    dbg.textContent = `[${ts}] ${msg}\n` + dbg.textContent.slice(0, 1800);
+  }
+
+  function setUI(live) {
     dot.classList.toggle('live', !!live);
     liveTxt.textContent = live ? 'LIVE' : 'Off Air';
     titleEl.textContent = live ? 'Big G TV • LIVE' : 'Big G TV is Off Air (for now)';
@@ -221,13 +247,14 @@ body::after{
     slideshowWrap.classList.toggle('is-off', !!live);
   }
 
-  function setMode(next){
+  function setMode(next) {
     if (mode === next) return;
     mode = next;
     setUI(mode === 'live');
+    log(`MODE => ${mode}`);
   }
 
-  function renderSlides(){
+  function renderSlides() {
     const slidesHtml = config.slides.map((src, i) =>
       `<div class="wg-slide${i===0?' is-active':''}" style="--bgimg: url('${src}');"></div>`
     ).join('');
@@ -236,7 +263,7 @@ body::after{
     startSlideshow();
   }
 
-  function startSlideshow(){
+  function startSlideshow() {
     stopSlideshow();
     const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
     if (!slides.length) return;
@@ -248,93 +275,152 @@ body::after{
       slides[activeIdx].classList.add('is-active');
     }, Math.max(2000, config.slideSeconds * 1000));
   }
-  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
+  function stopSlideshow() { if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
 
-  function destroyPlayer(){
-    if (probeTimeout) { clearTimeout(probeTimeout); probeTimeout=null; }
-    if (ytPlayer && ytPlayer.destroy) {
-      try { ytPlayer.destroy(); } catch(e){}
-    }
-    ytPlayer = null;
-    ytHolder.innerHTML = '<div id="yt-player"></div>';
+  function embedSrcFromVideoId(vid) {
+    const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
+    return 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(vid)
+      + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1' + origin;
   }
 
-  function markLive(){
-    setMode('live');
-    // stop probing once live
-    if (probeTimer) { clearInterval(probeTimer); probeTimer=null; }
-    if (probeTimeout) { clearTimeout(probeTimeout); probeTimeout=null; }
-  }
-
-  function handleState(state){
-    // 1 = PLAYING, 3 = BUFFERING (good enough for "live")
-    if (state === 1 || state === 3) {
-      markLive();
+  function setIframeToLiveVideo() {
+    if (!liveVideoId) return;
+    const nextSrc = embedSrcFromVideoId(liveVideoId);
+    if (iframeEl.src !== nextSrc) {
+      iframeEl.src = nextSrc;
+      log(`IFRAME => videoId=${liveVideoId}`);
     }
   }
 
-  function buildProbePlayer(){
-    // Rebuild player fresh each probe so it can latch on when the channel goes live.
-    destroyPlayer();
+  // -------- Primary: Data API live search ----------
+  async function pollDataApi() {
+    const url = 'https://www.googleapis.com/youtube/v3/search?part=id&channelId='
+      + encodeURIComponent(config.channelId)
+      + '&eventType=live&type=video&maxResults=1&key='
+      + encodeURIComponent(config.youtubeApiKey);
 
-    // Use listType=live_stream so we don't need videoId or Data API.
-    // This method tends to work reliably for channel live playback.
     try {
-      ytPlayer = new YT.Player('yt-player', {
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          autoplay: 1,
-          mute: 1,
-          playsinline: 1,
-          rel: 0,
-          modestbranding: 1,
-          enablejsapi: 1,
-          origin: (location.origin && location.origin !== 'null') ? location.origin : undefined,
-          listType: 'live_stream',
-          list: config.channelId
-        },
+      const res = await fetch(url, { cache:'no-store' });
+      const text = await res.text();
+      if (!res.ok) {
+        log(`API HTTP ${res.status}: ${text.slice(0,140)}`);
+        return false;
+      }
+      let json;
+      try { json = JSON.parse(text); } catch(e) {
+        log('API parse error');
+        return false;
+      }
+      const items = json.items || [];
+      const isLive = items.length > 0 && items[0].id && items[0].id.videoId;
+      log(`API ok. items=${items.length} live=${!!isLive}`);
+
+      if (isLive) {
+        liveVideoId = items[0].id.videoId;
+        setIframeToLiveVideo();
+        setMode('live');
+        return true;
+      } else {
+        setMode('offair');
+        return false;
+      }
+    } catch (e) {
+      log(`API fetch error: ${e && e.message ? e.message : e}`);
+      return false;
+    }
+  }
+
+  // -------- Fallback: Player probe on /live_stream ----------
+  function ensureProbePlayer() {
+    if (!window.YT || !YT.Player) return;
+
+    // If already playing, keep it.
+    if (ytPlayer) return;
+
+    // Build a hidden-ish probe player on the same iframe element
+    // We'll set it to live_stream and watch for PLAYING/BUFFERING.
+    try {
+      // reset iframe to live_stream mode
+      const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
+      iframeEl.src = 'https://www.youtube-nocookie.com/embed/live_stream?channel='
+        + encodeURIComponent(config.channelId)
+        + '&autoplay=1&mute=1&playsinline=1&rel=0' + origin + '&_=' + Date.now();
+
+      ytPlayer = new YT.Player('yt-embed', {
         events: {
           onReady: (e) => {
-            // Try to start playback (muted autoplay should be allowed on lobby PCs).
+            log('Probe player ready');
             try { e.target.playVideo(); } catch(_e){}
-            // If it doesn't become PLAYING/BUFFERING quickly, assume still off-air and keep slideshow.
-            probeTimeout = setTimeout(() => {
-              if (mode !== 'live') setMode('offair');
-            }, config.probeTimeoutMs);
           },
-          onStateChange: (e) => handleState(e.data),
-          onError: () => {
-            // Off-air or some transient error: keep off-air and continue probing.
-            setMode('offair');
+          onStateChange: (e) => {
+            // 1 playing, 3 buffering
+            log(`Probe state=${e.data}`);
+            if (e.data === 1 || e.data === 3) {
+              // if Data API couldn't find videoId but playback started, we're live:
+              setMode('live');
+            }
+          },
+          onError: (e) => {
+            log(`Probe error code=${e.data}`);
           }
         }
       });
     } catch(e) {
-      setMode('offair');
+      log('Probe init failed');
+      ytPlayer = null;
     }
   }
 
-  function startProbing(){
-    if (probeTimer) return;
-    // First probe immediately
-    buildProbePlayer();
-    probeTimer = setInterval(() => {
-      if (mode === 'offair') buildProbePlayer();
-    }, config.probeMs);
+  function resetProbePlayer() {
+    if (ytPlayer && ytPlayer.destroy) {
+      try { ytPlayer.destroy(); } catch(_e){}
+    }
+    ytPlayer = null;
   }
 
-  // Wake/focus: probe immediately
+  // Hybrid loop: try Data API; if it fails repeatedly, use probe.
+  let apiFailStreak = 0;
+
+  async function tick() {
+    const apiLive = await pollDataApi();
+    if (apiLive) {
+      apiFailStreak = 0;
+      resetProbePlayer();
+      return;
+    }
+
+    // If API isn't returning live, we still keep an occasional probe,
+    // because some live configs can be weird.
+    apiFailStreak++;
+    if (apiFailStreak >= 3) {
+      ensureProbePlayer();
+      apiFailStreak = 0; // don't spam
+    }
+  }
+
+  // Wake/focus: run immediately
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && mode === 'offair' && window.YT && YT.Player) buildProbePlayer();
+    if (!document.hidden) {
+      log('Tab visible: immediate tick');
+      tick();
+    }
   });
 
   // Boot
   renderSlides();
-  setMode('offair');
+  setUI(false);
 
+  // Start loop
+  tick();
+  setInterval(tick, config.apiPollMs);
+
+  // YouTube API ready (for probe fallback)
   window.onYouTubeIframeAPIReady = () => {
-    startProbing();
+    log('YT IFrame API ready');
+    // probe timer (only if needed)
+    probeTimer = setInterval(() => {
+      if (mode === 'offair') ensureProbePlayer();
+    }, config.probeMs);
   };
 })();
 </script>
