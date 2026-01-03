@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>WGNS Lobby</title>
+<title>Big G TV Lobby</title>
 <style>
 :root {
   --bg:#0b1220;
@@ -84,12 +84,7 @@ body::after{
 .dot.live{background:#22c55e}
 .wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
 
-/* Video */
-.wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
-.wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-
-/* Off-air slideshow (full-bleed, rounded corners) */
-.wg-slideshow{
+.wg-stage{
   position:relative;
   width:100%; height:100%;
   border-radius:16px;
@@ -97,6 +92,22 @@ body::after{
   background:#000;
   border:1px solid rgba(15,23,42,.10);
 }
+/* Video layer (stays mounted, we just fade it in/out) */
+.wg-video{
+  position:absolute; inset:0;
+  opacity:0;
+  transition: opacity .7s ease-in-out;
+}
+.wg-video.is-on{opacity:1}
+.wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
+
+/* Slideshow layer */
+.wg-slideshow{
+  position:absolute; inset:0;
+  opacity:1;
+  transition: opacity .7s ease-in-out;
+}
+.wg-slideshow.is-off{opacity:0; pointer-events:none}
 .wg-slideshow::after{
   content:"";
   position:absolute; inset:0;
@@ -116,7 +127,6 @@ body::after{
   z-index:1;
 }
 .wg-slide.is-active{opacity:1}
-
 .wg-slide::before{
   content:"";
   position:absolute; inset:-4%;
@@ -128,7 +138,6 @@ body::after{
 }
 .wg-slide.is-active::before{ animation: wgPulse 6s ease-in-out infinite; }
 @keyframes wgPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
-
 .wg-slide::after{
   content:"";
   position:absolute; inset:0;
@@ -141,6 +150,7 @@ body::after{
   body::before{animation:none}
   .wg-slide{transition:none}
   .wg-slide.is-active::before{animation:none}
+  .wg-video, .wg-slideshow{transition:none}
 }
 @media (max-width:560px){.wg-badge{display:none}}
 </style>
@@ -148,72 +158,74 @@ body::after{
 <body>
 <main class="wg-app">
   <header class="wg-header">
-    <div class="wg-title" id="wg-title"></div>
+    <div class="wg-title" id="wg-title">Big G TV is Off Air (for now)</div>
     <div class="wg-spacer"></div>
     <div class="wg-badge">
       <span class="dot" id="wg-dot"></span>
-      <span id="wg-live-text">Checking…</span>
+      <span id="wg-live-text">Off Air</span>
     </div>
   </header>
-  <section class="wg-body" id="wg-content"></section>
+
+  <section class="wg-body">
+    <div class="wg-stage" id="wg-stage">
+      <div class="wg-video" id="wg-video">
+        <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
+      <div class="wg-slideshow" id="wg-slideshow"></div>
+    </div>
+  </section>
 </main>
 
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (() => {
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
 
-    // Faster detection so "going live" doesn't feel broken.
-    pollMs: 15000,
+    // how often we "poke" the live embed while off-air (no API key needed)
+    offAirReloadMs: 20000,
 
+    // how often we check player state once mounted
+    statePollMs: 1500,
+
+    // slideshow
     slideSeconds: 8,
     slides: [
-      'WGNS.png?v=1767422429',
-      'BGTV.png?v=1767422429',
-      'PTS.png?v=1767422429',
-      'RWX.png?v=1767422429'
+      'WGNS.png?v=1767422788',
+      'BGTV.png?v=1767422788',
+      'PTS.png?v=1767422788',
+      'RWX.png?v=1767422788'
     ]
   };
 
-  const content = document.getElementById('wg-content');
   const titleEl = document.getElementById('wg-title');
   const dot     = document.getElementById('wg-dot');
   const liveTxt = document.getElementById('wg-live-text');
+  const videoWrap = document.getElementById('wg-video');
+  const slideshowWrap = document.getElementById('wg-slideshow');
+  const iframeEl = document.getElementById('yt-embed');
 
-  let mode = 'offair';
-  let liveVideoId = null;
-
-  // slideshow state
+  let ytPlayer = null;
+  let mode = 'offair'; // offair | live
   let slideTimer = null;
   let activeIdx = 0;
+  let offAirReloadTimer = null;
+  let statePollTimer = null;
 
-  function setBadge(live){
+  function setUI(live){
     dot.classList.toggle('live', !!live);
     liveTxt.textContent = live ? 'LIVE' : 'Off Air';
-  }
-
-  function videoEmbedSrc(vid){
-    const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
-    const base = 'https://www.youtube-nocookie.com/embed/';
-    if (vid){
-      return base + encodeURIComponent(vid) + '?autoplay=1&mute=1&playsinline=1&rel=0' + origin;
-    }
-    // fallback if we somehow have no videoId
-    return base + 'live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1&rel=0' + origin;
-  }
-
-  function stopSlideshow(){
-    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+    titleEl.textContent = live ? 'Big G TV • LIVE' : 'Big G TV is Off Air (for now)';
+    videoWrap.classList.toggle('is-on', !!live);
+    slideshowWrap.classList.toggle('is-off', !!live);
   }
 
   function startSlideshow(){
     stopSlideshow();
-    const slides = Array.from(document.querySelectorAll('.wg-slide'));
+    const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
     if (!slides.length) return;
 
     slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
-
     slideTimer = setInterval(() => {
       const prev = activeIdx;
       activeIdx = (activeIdx + 1) % slides.length;
@@ -221,62 +233,118 @@ body::after{
       slides[activeIdx].classList.add('is-active');
     }, Math.max(2000, config.slideSeconds * 1000));
   }
+  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
 
-  function renderOffAir(){
-    mode = 'offair';
-    titleEl.textContent = 'Big G TV is Off Air (for now)';
-
-    const slidesHtml = config.slides.map((src, i) => {
-      return `<div class="wg-slide${i===0?' is-active':''}" style="--bgimg: url('${src}');"></div>`;
-    }).join('');
-
-    content.innerHTML = `<div class="wg-slideshow">${slidesHtml}</div>`;
+  function renderSlides(){
+    const slidesHtml = config.slides.map((src, i) =>
+      `<div class="wg-slide${i===0?' is-active':''}" style="--bgimg: url('${src}');"></div>`
+    ).join('');
+    slideshowWrap.innerHTML = slidesHtml;
     activeIdx = 0;
     startSlideshow();
   }
 
-  function renderWatch(){
-    mode = 'watch';
-    titleEl.textContent = 'Big G TV • LIVE';
-    stopSlideshow();
-    content.innerHTML = `<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="${videoEmbedSrc(liveVideoId)}"></iframe></div>`;
+  function liveEmbedSrc(){
+    // Cache-bust the iframe so it will re-check if the channel has gone live.
+    const bust = Date.now();
+    const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
+    return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
+      + encodeURIComponent(config.channelId)
+      + '&autoplay=1&mute=1&playsinline=1&rel=0'
+      + origin
+      + '&_=' + bust;
   }
 
-  async function pollLive(){
-    const url = 'https://www.googleapis.com/youtube/v3/search?part=id&channelId='
-      + encodeURIComponent(config.channelId)
-      + '&eventType=live&type=video&maxResults=1&key='
-      + encodeURIComponent(config.youtubeApiKey);
+  function ensureIframeLoaded(){
+    iframeEl.src = liveEmbedSrc();
+  }
 
-    try{
-      const res = await fetch(url, {cache:'no-store'});
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const json = await res.json();
-      const isLive = !!(json.items && json.items.length);
-      liveVideoId = isLive ? (json.items[0].id && json.items[0].id.videoId) : null;
+  function setMode(next){
+    if (mode === next) return;
+    mode = next;
+    setUI(mode === 'live');
 
-      setBadge(isLive);
-
-      if (isLive && mode !== 'watch') renderWatch();
-      if (!isLive && mode !== 'offair') renderOffAir();
-    } catch(e) {
-      // If the API fails, DO NOT block switching forever; keep the current mode.
-      // Also show Off Air badge instead of "Checking…"
-      setBadge(false);
+    if (mode === 'live') {
+      // Stop reloading/poking while live
+      if (offAirReloadTimer) { clearInterval(offAirReloadTimer); offAirReloadTimer=null; }
+    } else {
+      // When off-air, keep poking the iframe so it auto-switches when live starts
+      if (!offAirReloadTimer) {
+        offAirReloadTimer = setInterval(() => {
+          // Reload the iframe only if we're still off-air
+          if (mode === 'offair') ensureIframeLoaded();
+        }, config.offAirReloadMs);
+      }
     }
   }
 
-  // Poll immediately when the tab becomes visible again (helps lobby PCs waking up)
+  function isProbablyLiveState(state){
+    // 1 = PLAYING, 3 = BUFFERING
+    return state === 1 || state === 3;
+  }
+
+  function startStatePolling(){
+    if (statePollTimer) return;
+    statePollTimer = setInterval(() => {
+      if (!ytPlayer || !ytPlayer.getPlayerState) return;
+      let st;
+      try { st = ytPlayer.getPlayerState(); } catch(e) { return; }
+      if (isProbablyLiveState(st)) {
+        setMode('live');
+      } else {
+        // If it's not playing/buffering, treat as off-air
+        setMode('offair');
+      }
+    }, config.statePollMs);
+  }
+
+  function initYT(){
+    ensureIframeLoaded();
+
+    // Mount YT player on the iframe so we can read player state.
+    try {
+      ytPlayer = new YT.Player('yt-embed', {
+        events: {
+          onReady: () => {
+            // On ready, start polling state
+            startStatePolling();
+          },
+          onStateChange: (e) => {
+            if (isProbablyLiveState(e.data)) setMode('live');
+            // -1 unstarted, 0 ended, 2 paused, 5 cued => likely off-air
+            if (e.data === -1 || e.data === 0 || e.data === 2 || e.data === 5) setMode('offair');
+          },
+          onError: () => {
+            // Off-air or blocked: show slideshow and keep poking
+            setMode('offair');
+          }
+        }
+      });
+    } catch(e) {
+      // If player init fails, we still keep reloading iframe.
+      setMode('offair');
+    }
+  }
+
+  // Run
+  renderSlides();
+  setMode('offair');
+
+  // Re-check quickly after wake / tab focus (lobby PCs)
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) pollLive();
+    if (!document.hidden) {
+      ensureIframeLoaded();
+      if (ytPlayer && ytPlayer.playVideo) { try { ytPlayer.playVideo(); } catch(e){} }
+    }
   });
 
-  // preload
-  config.slides.forEach(src => { const i = new Image(); i.src = src; });
+  // YouTube API callback
+  window.onYouTubeIframeAPIReady = initYT;
 
-  renderOffAir();
-  pollLive();
-  setInterval(pollLive, config.pollMs);
+  // Safety: if YT API doesn't load for some reason, still reload iframe periodically
+  offAirReloadTimer = setInterval(() => {
+    if (mode === 'offair') ensureIframeLoaded();
+  }, config.offAirReloadMs);
 })();
 </script>
 </body>
