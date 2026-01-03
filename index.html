@@ -6,10 +6,13 @@
   <title>WGNS Lobby Live</title>
   <style>
     :root{
-      --bg:#0b1220; --panel:rgba(255,255,255,.92); --panel-strong:#fff;
-      --border:rgba(255,255,255,.14); --text:#0f172a; --muted:rgba(15,23,42,.65);
-      --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25);
-      --brand:#ef4444;
+      --bg:#0b1220;
+      --panel:rgba(255,255,255,.92);
+      --border:rgba(255,255,255,.14);
+      --text:#0f172a;
+      --muted:rgba(15,23,42,.65);
+      --radius:18px;
+      --shadow:0 18px 48px rgba(0,0,0,.25);
     }
     html,body{height:100%}
     body{
@@ -40,7 +43,7 @@
       display:flex; align-items:center; gap:14px;
       padding:14px 16px;
       border-bottom:1px solid rgba(15,23,42,.08);
-      background:linear-gradient(180deg,var(--panel-strong),rgba(255,255,255,.88));
+      background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
       flex:0 0 auto;
     }
     .wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
@@ -53,69 +56,95 @@
       border:1px solid rgba(15,23,42,.10);
       background:rgba(255,255,255,.75);
       font-weight:900;
+      color:rgba(15,23,42,.85);
     }
     .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
     .dot.live{background:#22c55e}
-    .wg-toggle{
-      display:inline-flex;
-      background:rgba(15,23,42,.06);
-      border:1px solid rgba(15,23,42,.10);
-      border-radius:999px;
-      overflow:hidden;
-      margin-left:10px;
-    }
-    .wg-toggle button{
-      background:transparent; border:none;
-      padding:9px 14px; cursor:pointer;
-      color:rgba(15,23,42,.65);
-      font-weight:950;
-    }
-    .wg-toggle button[aria-pressed="true"]{
-      background:rgba(255,255,255,.9);
-      color:var(--text);
-      box-shadow:0 6px 16px rgba(0,0,0,.10);
-    }
     .wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
+
+    /* Video */
     .wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
     .wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-    .wg-audio-card{width:100%; height:100%; display:grid; place-items:center}
-    .wg-audio{
-      width:min(720px,100%);
-      border-radius:18px;
+
+    /* Off-air slideshow */
+    .wg-slideshow{
+      position:relative;
+      width:100%; height:100%;
+      border-radius:16px;
+      overflow:hidden;
+      background:rgba(15,23,42,.06);
       border:1px solid rgba(15,23,42,.10);
-      background:rgba(255,255,255,.88);
-      box-shadow:0 12px 28px rgba(0,0,0,.10);
-      padding:22px;
-      display:grid; gap:14px;
+      isolation:isolate;
     }
-    .wg-play{
-      width:72px; height:72px;
-      border-radius:50%;
-      border:1px solid rgba(15,23,42,.14);
-      background:#fff;
-      cursor:pointer;
-      display:grid; place-items:center;
-      font-size:26px;
+    .wg-slide{
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding:clamp(16px,2.5vw,28px);
+      opacity:0;
+      animation-name: wgFade;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-duration: calc(var(--slide-seconds) * 4s);
     }
-    .wg-volume{width:320px}
+    .wg-slide::before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.22), transparent 60%),
+        radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.12), transparent 60%),
+        radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
+      pointer-events:none;
+      mix-blend-mode: soft-light;
+    }
+    .wg-slide img{
+      width:min(100%, 980px);
+      height:auto;
+      max-height:100%;
+      object-fit:contain;
+      filter: drop-shadow(0 24px 40px rgba(0,0,0,.25));
+      transform: scale(1);
+      animation: wgPulse calc(var(--slide-seconds) * 1s) ease-in-out infinite;
+    }
+
+    .wg-slide:nth-child(1){animation-delay: calc(var(--slide-seconds) * 0s);}
+    .wg-slide:nth-child(2){animation-delay: calc(var(--slide-seconds) * 1s);}
+    .wg-slide:nth-child(3){animation-delay: calc(var(--slide-seconds) * 2s);}
+    .wg-slide:nth-child(4){animation-delay: calc(var(--slide-seconds) * 3s);}
+
+    @keyframes wgFade{
+      0%   {opacity:0}
+      10%  {opacity:1}
+      75%  {opacity:1}
+      90%  {opacity:0}
+      100% {opacity:0}
+    }
+    @keyframes wgPulse{
+      0%   {transform: scale(1)}
+      50%  {transform: scale(1.03)}
+      100% {transform: scale(1)}
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .wg-slide, .wg-slide img{animation:none !important}
+      .wg-slide{opacity:1; position:relative}
+    }
+    @media (max-width:560px){
+      .wg-badge{display:none}
+    }
   </style>
 </head>
 <body>
   <main class="wg-app">
     <header class="wg-header">
       <div class="wg-brand">
-        <div class="title" id="wg-mode-label">Loading…</div>
-        <div class="sub">Automatically switches to video when LIVE</div>
+        <div class="title" id="wg-mode-label">Checking live status…</div>
+        <div class="sub" id="wg-sub">Off-air slideshow plays until we go LIVE.</div>
       </div>
       <div class="wg-spacer"></div>
       <div class="wg-badge">
         <span class="dot" id="wg-dot"></span>
         <span id="wg-live-text">Checking…</span>
       </div>
-      <nav class="wg-toggle">
-        <button id="btn-listen">Listen</button>
-        <button id="btn-watch">Watch</button>
-      </nav>
     </header>
     <section class="wg-body" id="wg-content"></section>
   </main>
@@ -124,78 +153,86 @@
 (() => {
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    audioSrc: 'https://ice5.securenetsystems.net/WGNSM',
     youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
-    pollMs: 45000
+    pollMs: 45000,
+
+    // Seconds each slide stays on-screen (recommend 8–12)
+    slideSeconds: 10,
+
+    slides: [
+      { src: 'WGNS.png', alt: 'WGNS' },
+      { src: 'BGTV.png', alt: 'Big G TV' },
+      { src: 'PTS.png',  alt: 'Primetime Sports' },
+      { src: 'RWX.png',  alt: 'Rutherford Weather' },
+    ]
   };
 
-  const btnListen = document.getElementById('btn-listen');
-  const btnWatch  = document.getElementById('btn-watch');
   const content   = document.getElementById('wg-content');
   const modeLabel = document.getElementById('wg-mode-label');
-  const dot = document.getElementById('wg-dot');
-  const liveText = document.getElementById('wg-live-text');
+  const sub       = document.getElementById('wg-sub');
+  const dot       = document.getElementById('wg-dot');
+  const liveText  = document.getElementById('wg-live-text');
 
-  let mode = 'listen';
-  let audioEl = null;
+  let mode = 'offair'; // offair | watch
   let liveVideoId = null;
 
-  const embedSrc = (vid) =>
-    'https://www.youtube-nocookie.com/embed/' + (vid || 'live_stream?channel=' + config.channelId) +
-    '?autoplay=1&mute=1&playsinline=1';
-
   function setBadge(live){
-    dot.classList.toggle('live', live);
+    dot.classList.toggle('live', !!live);
     liveText.textContent = live ? 'LIVE' : 'Off Air';
   }
 
-  function setMode(m){
-    mode = m;
-    modeLabel.textContent = m === 'watch' ? 'Watch Live' : 'Listen Live';
-    btnListen.setAttribute('aria-pressed', m==='listen');
-    btnWatch.setAttribute('aria-pressed', m==='watch');
-    if(m==='watch') renderWatch(); else renderListen();
-  }
-
-  function renderListen(){
-    content.innerHTML = '';
-    const card = document.createElement('div');
-    card.className = 'wg-audio-card';
-    card.innerHTML = '<div class="wg-audio"><button class="wg-play" id="wg-play">▶</button><input id="wg-volume" class="wg-volume" type="range" min="0" max="100" value="80"></div>';
-    audioEl = audioEl || new Audio(config.audioSrc);
-    audioEl.volume = 0.8;
-    card.appendChild(audioEl);
-    content.appendChild(card);
-
-    document.getElementById('wg-play').onclick = async () => {
-      if(audioEl.paused){ await audioEl.play(); document.getElementById('wg-play').textContent='❚❚'; }
-      else{ audioEl.pause(); document.getElementById('wg-play').textContent='▶'; }
-    };
-    document.getElementById('wg-volume').oninput = e => audioEl.volume = e.target.value/100;
+  function videoEmbedSrc(vid){
+    const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
+    if (vid){
+      return 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(vid) + '?autoplay=1&mute=1&playsinline=1' + origin;
+    }
+    return 'https://www.youtube-nocookie.com/embed/live_stream?channel=' + encodeURIComponent(config.channelId) + '&autoplay=1&mute=1&playsinline=1' + origin;
   }
 
   function renderWatch(){
-    if(audioEl) audioEl.pause();
-    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media" allowfullscreen src="'+embedSrc(liveVideoId)+'"></iframe></div>';
+    mode = 'watch';
+    modeLabel.textContent = 'Watch Live';
+    sub.textContent = 'You are watching the live stream.';
+    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen src="'+videoEmbedSrc(liveVideoId)+'"></iframe></div>';
+  }
+
+  function renderOffAir(){
+    mode = 'offair';
+    modeLabel.textContent = 'We’re Off Air (for now)';
+    sub.textContent = 'This display will switch to video automatically when we go LIVE.';
+    const slidesHtml = config.slides.map(s => (
+      '<div class="wg-slide"><img src="'+s.src+'" alt="'+(s.alt||'')+'" /></div>'
+    )).join('');
+    content.innerHTML = '<div class="wg-slideshow" style="--slide-seconds:'+config.slideSeconds+'">'+slidesHtml+'</div>';
   }
 
   async function pollLive(){
-    const url = 'https://www.googleapis.com/youtube/v3/search?part=id&channelId='+config.channelId+'&eventType=live&type=video&maxResults=1&key='+config.youtubeApiKey;
+    const url = 'https://www.googleapis.com/youtube/v3/search?part=id&channelId='
+      + encodeURIComponent(config.channelId)
+      + '&eventType=live&type=video&maxResults=1&key='
+      + encodeURIComponent(config.youtubeApiKey);
+
     try{
       const res = await fetch(url, {cache:'no-store'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
       const json = await res.json();
-      const live = json.items && json.items.length;
-      liveVideoId = live ? json.items[0].id.videoId : null;
-      setBadge(live);
-      if(live && mode!=='watch') setMode('watch');
-      if(!live && mode!=='listen') setMode('listen');
-    }catch(e){}
+      const isLive = !!(json.items && json.items.length);
+      liveVideoId = isLive ? (json.items[0].id && json.items[0].id.videoId) : null;
+
+      setBadge(isLive);
+
+      if (isLive && mode !== 'watch') renderWatch();
+      if (!isLive && mode !== 'offair') renderOffAir();
+    }catch(e){
+      // If the check fails, keep current mode and badge conservative.
+      setBadge(false);
+    }
   }
 
-  btnListen.onclick = ()=>setMode('listen');
-  btnWatch.onclick  = ()=>setMode('watch');
+  // Preload slides
+  config.slides.forEach(s => { const i = new Image(); i.src = s.src; });
 
-  setMode('listen');
+  renderOffAir();
   pollLive();
   setInterval(pollLive, config.pollMs);
 })();
