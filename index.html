@@ -44,21 +44,31 @@
       flex:0 0 auto;
     }
     .wg-brand{display:flex; flex-direction:column; gap:2px; min-width:0}
-    .wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .wg-brand .sub{font-size:.85rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .wg-brand .title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
+    .wg-brand .sub{font-size:.85rem; color:var(--muted)}
     .wg-spacer{margin-left:auto}
+    .wg-badge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:7px 10px; border-radius:999px;
+      border:1px solid rgba(15,23,42,.10);
+      background:rgba(255,255,255,.75);
+      font-weight:900;
+    }
+    .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
+    .dot.live{background:#22c55e}
     .wg-toggle{
       display:inline-flex;
       background:rgba(15,23,42,.06);
       border:1px solid rgba(15,23,42,.10);
       border-radius:999px;
       overflow:hidden;
+      margin-left:10px;
     }
     .wg-toggle button{
       background:transparent; border:none;
       padding:9px 14px; cursor:pointer;
       color:rgba(15,23,42,.65);
-      font-weight:950; letter-spacing:.01em;
+      font-weight:950;
     }
     .wg-toggle button[aria-pressed="true"]{
       background:rgba(255,255,255,.9);
@@ -66,16 +76,8 @@
       box-shadow:0 6px 16px rgba(0,0,0,.10);
     }
     .wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
-
-    .wg-video{
-      position:relative; width:100%; height:100%;
-      background:rgba(15,23,42,.06);
-      border:1px solid rgba(15,23,42,.10);
-      border-radius:16px;
-      overflow:hidden;
-    }
+    .wg-video{position:relative; width:100%; height:100%; background:#000; border-radius:16px; overflow:hidden}
     .wg-video iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-
     .wg-audio-card{width:100%; height:100%; display:grid; place-items:center}
     .wg-audio{
       width:min(720px,100%);
@@ -83,146 +85,120 @@
       border:1px solid rgba(15,23,42,.10);
       background:rgba(255,255,255,.88);
       box-shadow:0 12px 28px rgba(0,0,0,.10);
-      padding:clamp(14px,2.4vw,22px);
+      padding:22px;
       display:grid; gap:14px;
     }
-    .wg-audio-top{display:flex; align-items:center; gap:14px}
     .wg-play{
-      width:clamp(52px,8vw,72px); height:clamp(52px,8vw,72px);
+      width:72px; height:72px;
       border-radius:50%;
       border:1px solid rgba(15,23,42,.14);
-      background:rgba(255,255,255,.9);
+      background:#fff;
       cursor:pointer;
       display:grid; place-items:center;
-      font-size:clamp(18px,3.6vw,26px);
-      box-shadow:0 12px 26px rgba(0,0,0,.10);
-      user-select:none;
+      font-size:26px;
     }
-    .wg-meta{display:grid; gap:4px; min-width:0}
-    .wg-meta b{font-size:1.05rem; letter-spacing:-.01em}
-    .wg-meta span{color:rgba(15,23,42,.65); font-size:.9rem; font-weight:650}
-    .wg-row{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-    .wg-volume{width:min(320px,100%)}
-
-    @media (max-width:560px){
-      .wg-header{gap:10px}
-      .wg-toggle button{padding:9px 12px}
-      .wg-brand .sub{display:none}
-    }
+    .wg-volume{width:320px}
   </style>
 </head>
 <body>
-  <main class="wg-app" role="application" aria-label="WGNS Lobby Player">
+  <main class="wg-app">
     <header class="wg-header">
       <div class="wg-brand">
         <div class="title" id="wg-mode-label">Loading…</div>
-        <div class="sub">Watch the live video stream, or listen to the live audio feed.</div>
+        <div class="sub">Automatically switches to video when LIVE</div>
       </div>
       <div class="wg-spacer"></div>
-      <nav class="wg-toggle" aria-label="Toggle watch or listen">
-        <button id="btn-listen" aria-pressed="false" type="button">Listen</button>
-        <button id="btn-watch"  aria-pressed="false" type="button">Watch</button>
+      <div class="wg-badge">
+        <span class="dot" id="wg-dot"></span>
+        <span id="wg-live-text">Checking…</span>
+      </div>
+      <nav class="wg-toggle">
+        <button id="btn-listen">Listen</button>
+        <button id="btn-watch">Watch</button>
       </nav>
     </header>
-
-    <section class="wg-body" id="wg-content" aria-live="polite"></section>
+    <section class="wg-body" id="wg-content"></section>
   </main>
 
-  <script>
-    (function () {
-      // === CONFIG (edit these if needed) ===
-      const config = {
-        channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-        audioSrc: 'https://ice5.securenetsystems.net/WGNSM'
-      };
+<script>
+(() => {
+  const config = {
+    channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
+    audioSrc: 'https://ice5.securenetsystems.net/WGNSM',
+    youtubeApiKey: 'AIzaSyB1seR1hQDpeJtkxml0R8lyitpqldAGzA0',
+    pollMs: 45000
+  };
 
-      // Optional: start mode via URL query ?mode=watch or ?mode=listen
-      const startMode = (new URLSearchParams(location.search).get('mode') || 'watch').toLowerCase();
+  const btnListen = document.getElementById('btn-listen');
+  const btnWatch  = document.getElementById('btn-watch');
+  const content   = document.getElementById('wg-content');
+  const modeLabel = document.getElementById('wg-mode-label');
+  const dot = document.getElementById('wg-dot');
+  const liveText = document.getElementById('wg-live-text');
 
-      const btnListen = document.getElementById('btn-listen');
-      const btnWatch  = document.getElementById('btn-watch');
-      const content   = document.getElementById('wg-content');
-      const modeLabel = document.getElementById('wg-mode-label');
+  let mode = 'listen';
+  let audioEl = null;
+  let liveVideoId = null;
 
-      let audioEl = null;
+  const embedSrc = (vid) =>
+    'https://www.youtube-nocookie.com/embed/' + (vid || 'live_stream?channel=' + config.channelId) +
+    '?autoplay=1&mute=1&playsinline=1';
 
-      function liveEmbedSrc() {
-        // GitHub Pages provides a valid https origin; include origin param for best compatibility.
-        const origin = (location.origin && location.origin !== 'null') ? '&origin=' + encodeURIComponent(location.origin) : '';
-        return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
-          + config.channelId
-          + '&autoplay=1&mute=1&playsinline=1'
-          + origin;
-      }
+  function setBadge(live){
+    dot.classList.toggle('live', live);
+    liveText.textContent = live ? 'LIVE' : 'Off Air';
+  }
 
-      function setMode(mode) {
-        const listenActive = mode === 'listen';
-        btnListen.setAttribute('aria-pressed', String(listenActive));
-        btnWatch.setAttribute('aria-pressed', String(!listenActive));
-        modeLabel.textContent = listenActive ? 'Listen Live' : 'Watch Live';
-        if (listenActive) renderListen(); else renderWatch();
-      }
+  function setMode(m){
+    mode = m;
+    modeLabel.textContent = m === 'watch' ? 'Watch Live' : 'Listen Live';
+    btnListen.setAttribute('aria-pressed', m==='listen');
+    btnWatch.setAttribute('aria-pressed', m==='watch');
+    if(m==='watch') renderWatch(); else renderListen();
+  }
 
-      function renderListen() {
-        content.innerHTML = '';
-        const card = document.createElement('div');
-        card.className = 'wg-audio-card';
-        card.innerHTML = `
-          <div class="wg-audio">
-            <div class="wg-audio-top">
-              <button class="wg-play" id="wg-play" type="button" aria-label="Play or pause">▶</button>
-              <div class="wg-meta">
-                <b>WGNS Radio</b>
-                <span>Live audio stream</span>
-              </div>
-            </div>
-            <div class="wg-row">
-              <input id="wg-volume" class="wg-volume" type="range" min="0" max="100" value="80" aria-label="Volume" />
-            </div>
-          </div>
-        `;
+  function renderListen(){
+    content.innerHTML = '';
+    const card = document.createElement('div');
+    card.className = 'wg-audio-card';
+    card.innerHTML = '<div class="wg-audio"><button class="wg-play" id="wg-play">▶</button><input id="wg-volume" class="wg-volume" type="range" min="0" max="100" value="80"></div>';
+    audioEl = audioEl || new Audio(config.audioSrc);
+    audioEl.volume = 0.8;
+    card.appendChild(audioEl);
+    content.appendChild(card);
 
-        audioEl = document.createElement('audio');
-        audioEl.src = config.audioSrc;
-        audioEl.preload = 'none';
-        audioEl.style.display = 'none';
-        audioEl.volume = 0.8;
-        card.appendChild(audioEl);
-        content.appendChild(card);
+    document.getElementById('wg-play').onclick = async () => {
+      if(audioEl.paused){ await audioEl.play(); document.getElementById('wg-play').textContent='❚❚'; }
+      else{ audioEl.pause(); document.getElementById('wg-play').textContent='▶'; }
+    };
+    document.getElementById('wg-volume').oninput = e => audioEl.volume = e.target.value/100;
+  }
 
-        const playBtn = document.getElementById('wg-play');
-        const vol     = document.getElementById('wg-volume');
+  function renderWatch(){
+    if(audioEl) audioEl.pause();
+    content.innerHTML = '<div class="wg-video"><iframe allow="autoplay; encrypted-media" allowfullscreen src="'+embedSrc(liveVideoId)+'"></iframe></div>';
+  }
 
-        playBtn.addEventListener('click', async () => {
-          try {
-            if (audioEl.paused) { await audioEl.play(); playBtn.textContent = '❚❚'; }
-            else { audioEl.pause(); playBtn.textContent = '▶'; }
-          } catch(_) {
-            playBtn.textContent = audioEl && !audioEl.paused ? '❚❚' : '▶';
-          }
-        });
-        vol.addEventListener('input', e => audioEl.volume = (Number(e.target.value)||0)/100);
-      }
+  async function pollLive(){
+    const url = 'https://www.googleapis.com/youtube/v3/search?part=id&channelId='+config.channelId+'&eventType=live&type=video&maxResults=1&key='+config.youtubeApiKey;
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      const json = await res.json();
+      const live = json.items && json.items.length;
+      liveVideoId = live ? json.items[0].id.videoId : null;
+      setBadge(live);
+      if(live && mode!=='watch') setMode('watch');
+      if(!live && mode!=='listen') setMode('listen');
+    }catch(e){}
+  }
 
-      function renderWatch() {
-        if (audioEl) { try { audioEl.pause(); } catch(_){} }
-        const src = liveEmbedSrc();
-        content.innerHTML = `
-          <div class="wg-video">
-            <iframe
-              src="${src}"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowfullscreen
-              title="WGNS Live Stream"></iframe>
-          </div>
-        `;
-      }
+  btnListen.onclick = ()=>setMode('listen');
+  btnWatch.onclick  = ()=>setMode('watch');
 
-      btnListen.addEventListener('click', () => setMode('listen'));
-      btnWatch .addEventListener('click', () => setMode('watch'));
-
-      setMode(startMode === 'listen' ? 'listen' : 'watch');
-    })();
-  </script>
+  setMode('listen');
+  pollLive();
+  setInterval(pollLive, config.pollMs);
+})();
+</script>
 </body>
 </html>
