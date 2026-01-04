@@ -5,14 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Big G TV Lobby</title>
 <style>
-:root {
-  --bg:#0b1220;
-  --panel:rgba(255,255,255,.92);
-  --border:rgba(255,255,255,.14);
-  --text:#0f172a;
-  --radius:18px;
-  --shadow:0 18px 48px rgba(0,0,0,.25);
-}
+:root { --bg:#0b1220; --panel:rgba(255,255,255,.92); --border:rgba(255,255,255,.14); --text:#0f172a; --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25); }
 html,body{height:100%}
 body{
   margin:0; min-height:100vh;
@@ -48,7 +41,6 @@ body::after{
   50%  { transform: translate3d(2.5%, 1.2%, 0) scale(1.12); opacity:1; }
   100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
 }
-
 .wg-app{
   width:min(1200px,100%);
   height:min(720px,100%);
@@ -81,7 +73,6 @@ body::after{
 .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
 .dot.live{background:#22c55e}
 .wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
-
 .wg-stage{
   position:relative;
   width:100%; height:100%;
@@ -90,19 +81,10 @@ body::after{
   background:#000;
   border:1px solid rgba(15,23,42,.10);
 }
-.wg-video{
-  position:absolute; inset:0;
-  opacity:0;
-  transition: opacity .7s ease-in-out;
-}
+.wg-video{ position:absolute; inset:0; opacity:0; transition: opacity .7s ease-in-out; }
 .wg-video.is-on{opacity:1}
 #yt-holder, #yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-
-.wg-slideshow{
-  position:absolute; inset:0;
-  opacity:1;
-  transition: opacity .7s ease-in-out;
-}
+.wg-slideshow{ position:absolute; inset:0; opacity:1; transition: opacity .7s ease-in-out; }
 .wg-slideshow.is-off{opacity:0; pointer-events:none}
 .wg-slideshow::after{
   content:"";
@@ -115,12 +97,7 @@ body::after{
   mix-blend-mode:soft-light;
   z-index:3;
 }
-.wg-slide{
-  position:absolute; inset:0;
-  opacity:0;
-  transition: opacity 1.2s ease-in-out;
-  z-index:1;
-}
+.wg-slide{ position:absolute; inset:0; opacity:0; transition: opacity 1.2s ease-in-out; z-index:1; }
 .wg-slide.is-active{opacity:1}
 .wg-slide::before{
   content:"";
@@ -140,7 +117,6 @@ body::after{
   pointer-events:none;
   z-index:2;
 }
-
 .wg-debug{
   position:absolute; left:12px; bottom:12px;
   padding:10px 12px; border-radius:12px;
@@ -178,14 +154,14 @@ body::after{
 
 <script>
 (() => {
-  const CACHE_BUST = '1767425937';
+  const CACHE_BUST = '1767426497';
 
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    iframeReloadMs: 9000,       // more aggressive probing
+    iframeReloadMs: 9000,
     detectPollMs: 900,
-    settleLiveMs: 2500,         // faster switch, still stable
-    stuckLiveMs: 8000,          // if LIVE but not playable for 8s, hard rebuild
+    settleLiveMs: 2500,
+    stuckLiveMs: 8000,
     slides: [
       'WGNS.png?v=' + CACHE_BUST,
       'BGTV.png?v=' + CACHE_BUST,
@@ -211,22 +187,17 @@ body::after{
   let detectTimer = null;
   let initTimer = null;
 
-  // live gating
   let liveConfidenceStartedAt = null;
+  let lastPlayableAt = 0;
+  let lastErrorAt = 0;
 
-  // playback health
-  let lastPlayableAt = 0; // last time we saw state 1 or 3
-  let lastErrorAt = 0;    // last time we saw onError
-
-  // slideshow
   let slideTimer = null;
   let activeIdx = 0;
 
   function log(msg){
     if (!debugOn) return;
     const ts = new Date().toLocaleTimeString();
-    dbg.textContent = '[' + ts + '] ' + msg + '
-' + dbg.textContent.slice(0, 1700);
+    dbg.textContent = '[' + ts + '] ' + msg + '\n' + dbg.textContent.slice(0, 1700);
   }
 
   function setUI(live){
@@ -279,11 +250,10 @@ body::after{
     log('iframe reload');
   }
 
-  function isLiveState(s){ return s === 1 || s === 3; } // playing/buffering
-
+  function isLiveState(s){ return s === 1 || s === 3; }
   function isRealVideoId(vid){
     if (!vid) return false;
-    if (vid === 'live_stream') return false; // placeholder
+    if (vid === 'live_stream') return false;
     if (vid.length < 10) return false;
     return true;
   }
@@ -317,8 +287,6 @@ body::after{
     const liveByVideoId = isRealVideoId(vid);
 
     log('state=' + st + ' vid=' + (vid||'(none)') + ' liveByState=' + liveByState + ' liveByVid=' + liveByVideoId);
-
-    // Only declare LIVE when we have real proof (not placeholder vid)
     noteLiveEvidence(liveByState || liveByVideoId);
   }
 
@@ -347,7 +315,6 @@ body::after{
             log('onError=' + e.data);
             lastErrorAt = Date.now();
             liveConfidenceStartedAt = null;
-            // error means not playable right now
             setMode('offair');
           }
         }
@@ -402,15 +369,10 @@ body::after{
         return;
       }
 
-      // If we're in LIVE mode but still not actually playable, self-heal like a refresh.
       if (mode === 'live' && !recentlyPlayable){
         log('LIVE but not playable -> self-heal');
-        if (recentlyErrored){
-          hardRebuildIframe();
-        } else {
-          reloadIframe();
-          rebuildPlayerAfterReload();
-        }
+        if (recentlyErrored) hardRebuildIframe();
+        else { reloadIframe(); rebuildPlayerAfterReload(); }
       }
     }, config.iframeReloadMs);
   }
@@ -424,12 +386,10 @@ body::after{
     }
   });
 
-  // Boot UI
   renderSlides();
   setMode('offair');
   reloadIframe();
 
-  // Load YT API script
   const s = document.createElement('script');
   s.src = 'https://www.youtube.com/iframe_api';
   s.async = true;
