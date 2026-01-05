@@ -3,278 +3,231 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Big G TV Lobby</title>
+<title>Big G TV Off Air</title>
 <style>
-:root { --bg:#0b1220; --panel:rgba(255,255,255,.92); --border:rgba(255,255,255,.14); --text:#0f172a; --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25); }
-html,body{height:100%}
-body{
-  margin:0; min-height:100vh;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-  color:var(--text);
-  background: var(--bg);
-  display:grid; place-items:center;
-  padding:clamp(14px,3vw,28px);
-  box-sizing:border-box;
-  position:relative;
-  overflow:hidden;
-}
-body::before{
-  content:"";
-  position:absolute; inset:-18%;
-  background:
-    radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.24), transparent 60%),
-    radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.18), transparent 55%),
-    radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.12), transparent 60%);
-  filter: blur(28px);
-  transform: translate3d(0,0,0) scale(1.10);
-  animation: bgDrift 18s ease-in-out infinite alternate;
-  z-index:-1;
-}
-body::after{
-  content:"";
-  position:absolute; inset:0;
-  background: radial-gradient(1200px 700px at 50% 40%, rgba(0,0,0,0), rgba(0,0,0,.30));
-  z-index:-1;
-}
-@keyframes bgDrift{
-  0%   { transform: translate3d(-2.5%, -1.5%, 0) scale(1.10); opacity:.95; }
-  50%  { transform: translate3d(2.5%, 1.2%, 0) scale(1.12); opacity:1; }
-  100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
-}
-.wg-app{
-  width:min(1200px,100%);
-  height:min(720px,100%);
-  max-height:calc(100vh - clamp(28px, 6vw, 56px));
-  background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  display:flex; flex-direction:column;
-  backdrop-filter:blur(10px);
-}
-.wg-header{
-  display:flex; align-items:center; gap:14px;
-  padding:14px 16px;
-  border-bottom:1px solid rgba(15,23,42,.08);
-  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
-  flex:0 0 auto;
-}
-.wg-title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
-.wg-spacer{margin-left:auto}
-.wg-badge{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:7px 10px; border-radius:999px;
-  border:1px solid rgba(15,23,42,.10);
-  background:rgba(255,255,255,.75);
-  font-weight:900;
-  color:rgba(15,23,42,.85);
-}
-.dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
-.dot.live{background:#22c55e}
-.wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
-.wg-stage{
-  position:relative;
-  width:100%; height:100%;
-  border-radius:16px;
-  overflow:hidden;
-  background:#000;
-  border:1px solid rgba(15,23,42,.10);
-}
-.wg-video{ position:absolute; inset:0; opacity:0; transition: opacity .7s ease-in-out; }
-.wg-video.is-on{opacity:1}
-#yt-holder, #yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-.wg-slideshow{ position:absolute; inset:0; opacity:1; transition: opacity .7s ease-in-out; }
-.wg-slideshow.is-off{opacity:0; pointer-events:none}
-.wg-slideshow::after{
-  content:"";
-  position:absolute; inset:0;
-  background:
-    radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.10), transparent 60%),
-    radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.10), transparent 60%),
-    radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
-  pointer-events:none;
-  mix-blend-mode:soft-light;
-  z-index:3;
-}
-.wg-slide{ position:absolute; inset:0; opacity:0; transition: opacity 1.2s ease-in-out; z-index:1; }
-.wg-slide.is-active{opacity:1}
-.wg-slide::before{
-  content:"";
-  position:absolute; inset:-4%;
-  background-image: var(--bgimg);
-  background-size:cover;
-  background-position:center;
-  transform:scale(1);
-  filter:saturate(1.02);
-}
-.wg-slide.is-active::before{ animation: wgPulse 6s ease-in-out infinite; }
-@keyframes wgPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
-.wg-slide::after{
-  content:"";
-  position:absolute; inset:0;
-  background: radial-gradient(900px 600px at 50% 50%, transparent 45%, rgba(0,0,0,.28));
-  pointer-events:none;
-  z-index:2;
-}
-.wg-debug{
-  position:absolute; left:12px; bottom:12px;
-  padding:10px 12px; border-radius:12px;
-  background:rgba(0,0,0,.55);
-  color:rgba(255,255,255,.92);
-  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  display:none; z-index:10; white-space:pre-wrap;
-}
-.wg-debug.on{display:block}
+  :root { --bg:#000; --fg:#fff; --muted:rgba(255,255,255,.7); }
+  html, body { width:100%; height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; overflow:hidden; }
+  /* Fullscreen stage */
+  #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  /* Blurred animated background */
+  #blur-bg{
+    position:absolute; inset:-40px;
+    background:
+      radial-gradient(1200px 600px at 20% 20%, rgba(59,130,246,.35), transparent 60%),
+      radial-gradient(1200px 600px at 80% 80%, rgba(16,185,129,.28), transparent 60%),
+      radial-gradient(1200px 600px at 80% 15%, rgba(239,68,68,.22), transparent 60%);
+    filter: blur(28px);
+    transform: scale(1.1);
+    animation: drift 16s ease-in-out infinite alternate;
+    opacity:.9;
+  }
+  @keyframes drift{
+    from { transform: scale(1.1) translate3d(-18px, -10px, 0); }
+    to   { transform: scale(1.15) translate3d(18px, 12px, 0); }
+  }
+  #scrim { position:absolute; inset:0; background:rgba(0,0,0,.55); }
+
+  /* Content layer */
+  #content { position:relative; width:100%; height:100%; display:flex; flex-direction:column; }
+
+  /* Header */
+  #header{ padding:28px 36px 0 36px; display:flex; gap:18px; align-items:baseline; justify-content:space-between; }
+  #wg-title{ font-size:38px; font-weight:800; letter-spacing:-0.02em; margin:0; }
+  #wg-sub{ font-size:16px; color:var(--muted); margin-top:6px; }
+
+  /* Body */
+  #body{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:18px 36px 36px 36px; }
+  #media-wrap{
+    position:relative;
+    width:min(92vw, 1560px);
+    height:min(62vh, 820px);
+    border-radius:22px;
+    overflow:hidden;
+    box-shadow: 0 18px 60px rgba(0,0,0,.55);
+    background:rgba(0,0,0,.35);
+  }
+
+  /* Slideshow image */
+  #slide{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:contain;
+    background:rgba(0,0,0,.25);
+    opacity:1;
+    transition: opacity .6s ease;
+  }
+
+  /* YouTube */
+  #yt-embed{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    border:0;
+    display:none; /* offair default */
+    background:#000;
+  }
+
+  /* Status pill */
+  #status{
+    position:absolute; left:18px; top:18px;
+    padding:8px 12px;
+    border-radius:999px;
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.14);
+    font-size:12px;
+    color:rgba(255,255,255,.85);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Debug box */
+  #debug{
+    position:fixed; left:16px; bottom:16px;
+    width:min(720px, calc(100vw - 32px));
+    max-height:40vh;
+    overflow:auto;
+    white-space:pre-wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:12px;
+    line-height:1.35;
+    padding:10px 12px;
+    border-radius:12px;
+    background:rgba(0,0,0,.75);
+    border:1px solid rgba(255,255,255,.14);
+    display:none;
+  }
 </style>
 </head>
 <body>
-<main class="wg-app">
-  <header class="wg-header">
-    <div class="wg-title" id="wg-title">Big G TV is Off Air (for now)</div>
-    <div class="wg-spacer"></div>
-    <div class="wg-badge">
-      <span class="dot" id="wg-dot"></span>
-      <span id="wg-live-text">Off Air</span>
-    </div>
-  </header>
+<div id="stage">
+  <div id="blur-bg"></div>
+  <div id="scrim"></div>
 
-  <section class="wg-body">
-    <div class="wg-stage">
-      <div class="wg-video" id="wg-video">
-        <div id="yt-holder">
-          <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-        </div>
+  <div id="content">
+    <div id="header">
+      <div>
+        <h1 id="wg-title">Big G TV is Off Air (for now)</h1>
+        <div id="wg-sub">We’ll switch to LIVE automatically when we go live.</div>
       </div>
-      <div class="wg-slideshow" id="wg-slideshow"></div>
-      <div class="wg-debug" id="wg-debug"></div>
     </div>
-  </section>
-</main>
+
+    <div id="body">
+      <div id="media-wrap">
+        <div id="status">OFF AIR</div>
+        <img id="slide" alt="Off Air Slide" />
+        <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="debug"></div>
 
 <script>
 (() => {
-  const CACHE_BUST = '1767426497';
-
-  const config = {
+  // ======== CONFIG ========
+  const CONFIG = {
+    // Your channel ID:
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    iframeReloadMs: 9000,
-    detectPollMs: 900,
-    liveProbeMs: 4000,
-    liveProbeTimeoutMs: 4500,
-    liveProxy: 'https://r.jina.ai/https://www.youtube.com/channel/',
-    settleLiveMs: 2500,
-    stuckLiveMs: 8000,
-    slides: [
-      'WGNS.png?v=' + CACHE_BUST,
-      'BGTV.png?v=' + CACHE_BUST,
-      'PTS.png?v=' + CACHE_BUST,
-      'RWX.png?v=' + CACHE_BUST
-    ],
-    slideSeconds: 8
+
+    // Slideshow
+    slides: ['WGNS.png','BGTV.png','PTS.png','RWX.png'],
+    slideMs: 6000,
+
+    // Live probing (no API key): parse the channel /live page through a text proxy
+    liveProbeMs: 6000,
+    liveProbeTimeoutMs: 7000,
+    // IMPORTANT: keep this HTTPS
+    liveProxyPrefix: 'https://r.jina.ai/https://www.youtube.com/channel/',
+
+    // YouTube embed tuning
+    embedParams: 'autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1'
   };
 
-  const titleEl = document.getElementById('wg-title');
-  const dot     = document.getElementById('wg-dot');
-  const liveTxt = document.getElementById('wg-live-text');
-  const videoWrap = document.getElementById('wg-video');
-  const slideshowWrap = document.getElementById('wg-slideshow');
-  const dbg = document.getElementById('wg-debug');
-
-  const debugOn = (() => {
-    try {
-      const qs = new URLSearchParams(location.search);
-      if (qs.get('debug') === '1' || qs.get('debug') === 'true') return true;
-    } catch(_e){}
-    return location.hash.includes('debug');
-  })();
-  if (debugOn) dbg.classList.add('on');
-
-  let mode = 'offair';
-  let player = null;
-  let reloadTimer = null;
-  let detectTimer = null;
-  let initTimer = null;
-
-  let liveConfidenceStartedAt = null;
-  let lastPlayableAt = 0;
-  let lastErrorAt = 0;
-
-  let slideTimer = null;
-  let activeIdx = 0;
-
-  function log(msg, force=false){
-    if (!debugOn && !force) return;
-    if (!dbg.classList.contains('on')) dbg.classList.add('on');
+  // ======== DEBUG ========
+  const debugEl = document.getElementById('debug');
+  const debugEnabled = (new URLSearchParams(location.search).get('debug') === '1') || (location.hash.includes('debug'));
+  function showDebug(){ debugEl.style.display = 'block'; }
+  function log(msg){
+    if (!debugEnabled) return;
+    showDebug();
     const ts = new Date().toLocaleTimeString();
-    dbg.textContent = '[' + ts + '] ' + msg + '
-' + dbg.textContent.slice(0, 1700);
+    debugEl.textContent += `[${ts}] ${msg}\n`;
+    debugEl.scrollTop = debugEl.scrollHeight;
   }
-  // Surface JS errors on-screen so the page never "silently" fails
+  // If anything errors, show it.
   window.addEventListener('error', (e) => {
-    log('ERROR: ' + (e.message || 'unknown') + (e.filename ? (' @ ' + e.filename + ':' + e.lineno) : ''), true);
+    showDebug();
+    debugEl.textContent += `\n[ERROR] ${e.message}\n`;
   });
   window.addEventListener('unhandledrejection', (e) => {
-    const r = e && e.reason;
-    log('PROMISE REJECTION: ' + (r && (r.message || String(r)) || 'unknown'), true);
+    showDebug();
+    debugEl.textContent += `\n[REJECT] ${String(e.reason)}\n`;
   });
 
-  function setUI(live){
-    dot.classList.toggle('live', !!live);
-    liveTxt.textContent = live ? 'LIVE' : 'Off Air';
-    titleEl.textContent = live ? 'Big G TV • LIVE' : 'Big G TV is Off Air (for now)';
-    videoWrap.classList.toggle('is-on', !!live);
-    slideshowWrap.classList.toggle('is-off', !!live);
+  // ======== ELEMENTS ========
+  const statusEl = document.getElementById('status');
+  const slideEl = document.getElementById('slide');
+  const ytEl = document.getElementById('yt-embed');
+
+  // ======== SLIDESHOW ========
+  let slideIdx = 0;
+  function setSlide(i){
+    const src = CONFIG.slides[i] + '?v=' + Date.now();
+    slideEl.style.opacity = '0';
+    // load -> fade in
+    const img = new Image();
+    img.onload = () => {
+      slideEl.src = src;
+      requestAnimationFrame(() => slideEl.style.opacity = '1');
+      log('slide OK ' + src);
+    };
+    img.onerror = () => {
+      log('slide FAIL ' + src + ' (check file name + folder)');
+      // Keep old slide; also show a black fallback
+      slideEl.style.opacity = '1';
+    };
+    img.src = src;
   }
+  function startSlideshow(){
+    setSlide(slideIdx);
+    setInterval(() => {
+      if (mode !== 'offair') return;
+      slideIdx = (slideIdx + 1) % CONFIG.slides.length;
+      setSlide(slideIdx);
+    }, CONFIG.slideMs);
+  }
+
+  // ======== LIVE DETECTION ========
+  let mode = 'offair';
+  let lastVideoId = '';
   function setMode(next){
     if (mode === next) return;
     mode = next;
-    setUI(mode === 'live');
-    log('MODE => ' + mode);
-    if (mode === 'offair') startLiveProbeLoop();
+    if (mode === 'live'){
+      statusEl.textContent = 'LIVE';
+      slideEl.style.display = 'none';
+      ytEl.style.display = 'block';
+      log('MODE -> LIVE');
+    } else {
+      statusEl.textContent = 'OFF AIR';
+      ytEl.style.display = 'none';
+      slideEl.style.display = 'block';
+      log('MODE -> OFF AIR');
+    }
   }
 
-  function renderSlides(){
-    const slidesHtml = config.slides.map((src, i) =>
-      '<div class="wg-slide' + (i===0?' is-active':'') + '" style="--bgimg: url(\'' + src + '\');"></div>'
-    ).join('');
-    slideshowWrap.innerHTML = slidesHtml;
-    activeIdx = 0;
-    startSlideshow();
+  function embedUrlForVideoId(vid){
+    return `https://www.youtube.com/embed/${vid}?${CONFIG.embedParams}`;
   }
-  function startSlideshow(){
-    stopSlideshow();
-    const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
-    if (!slides.length) return;
-    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
-    slideTimer = setInterval(() => {
-      const prev = activeIdx;
-      activeIdx = (activeIdx + 1) % slides.length;
-      slides[prev].classList.remove('is-active');
-      slides[activeIdx].classList.add('is-active');
-    }, Math.max(2000, config.slideSeconds * 1000));
-  }
-  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
-
-  function liveIframeSrc(){
-    return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
-      + encodeURIComponent(config.channelId)
-      + '&autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
-      + '&_=' + Date.now();
+  function embedUrlForChannelLive(){
+    // Fallback that sometimes goes stale; we still keep it as a backup.
+    return `https://www.youtube.com/embed/live_stream?channel=${CONFIG.channelId}&${CONFIG.embedParams}`;
   }
 
-  function embedSrcForVideoId(videoId){
-    return 'https://www.youtube-nocookie.com/embed/'
-      + encodeURIComponent(videoId)
-      + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
-      + '&_=' + Date.now();
-  }
-
-  async function fetchWithTimeout(url, timeoutMs){
+  async function fetchText(url, timeoutMs){
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try{
-      const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+      const res = await fetch(url, { signal: ctrl.signal, cache:'no-store' });
       const txt = await res.text();
       return { ok: res.ok, status: res.status, text: txt };
     } finally {
@@ -282,225 +235,80 @@ body::after{
     }
   }
 
-  function parseLiveVideoIdFromChannelLivePage(htmlText){
-    // The proxied HTML often contains ytInitialPlayerResponse JSON. We look for isLiveNow + videoId.
-    // 1) Strong signal: "isLiveNow":true ... "videoId":"<id>"
-    const liveNowIdx = htmlText.indexOf('"isLiveNow":true');
-    if (liveNowIdx !== -1){
-      const slice = htmlText.slice(Math.max(0, liveNowIdx - 2000), liveNowIdx + 2000);
-      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{10,})"/);
+  function extractLiveVideoId(htmlText){
+    // We try a few patterns seen in ytInitialPlayerResponse / microformat when live.
+    // Strategy:
+    // 1) If isLiveNow true is present, grab nearest videoId.
+    let idx = htmlText.indexOf('"isLiveNow":true');
+    if (idx !== -1){
+      const slice = htmlText.slice(Math.max(0, idx-5000), idx+5000);
+      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
       if (m) return m[1];
     }
-    // 2) Fallback: look for "isLive":true near a videoId
-    const isLiveIdx = htmlText.indexOf('"isLive":true');
-    if (isLiveIdx !== -1){
-      const slice = htmlText.slice(Math.max(0, isLiveIdx - 2500), isLiveIdx + 2500);
-      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{10,})"/);
+    // 2) liveStreamability / LIVE_STREAM_OFFLINE markers sometimes exist; still look for videoId in player response.
+    idx = htmlText.indexOf('ytInitialPlayerResponse');
+    if (idx !== -1){
+      const slice = htmlText.slice(idx, idx + 20000);
+      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
       if (m) return m[1];
     }
+    // 3) generic: if the /live page is actively a watch page, it often includes "watch?v=<id>"
+    const m2 = htmlText.match(/watch\?v=([a-zA-Z0-9_-]{11})/);
+    if (m2) return m2[1];
     return '';
   }
 
-  let liveProbeTimer = null;
-  let lastProbedVideoId = '';
+  async function probeLive(){
+    const url = CONFIG.liveProxyPrefix + CONFIG.channelId + '/live';
+    const res = await fetchText(url, CONFIG.liveProbeTimeoutMs);
+    log(`probe ${res.status} ${url}`);
+    if (!res.ok) return '';
+    const vid = extractLiveVideoId(res.text);
+    if (vid && vid.length === 11) return vid;
+    return '';
+  }
 
-  async function probeForLive(){
-    if (mode !== 'offair') return;
-    const url = config.liveProxy + encodeURIComponent(config.channelId) + '/live';
+  let probing = false;
+  async function liveLoop(){
+    if (probing) return;
+    probing = true;
     try{
-      const res = await fetchWithTimeout(url, config.liveProbeTimeoutMs);
-      log('probe status=' + res.status);
-      if (!res.ok) return;
-      const vid = parseLiveVideoIdFromChannelLivePage(res.text) || '';
-      if (vid && isRealVideoId(vid)){
-        lastProbedVideoId = vid;
-        log('probe FOUND live videoId=' + vid);
-        // Switch iframe to specific video to avoid stale live_stream embed
-        iframeEl.src = embedSrcForVideoId(vid);
-        // Give it a moment, then rebuild JS API player (optional)
+      // Always keep the channel-live embed loaded as a fallback
+      if (!ytEl.src) ytEl.src = embedUrlForChannelLive();
+
+      const vid = await probeLive();
+      if (vid){
+        if (vid !== lastVideoId){
+          lastVideoId = vid;
+          ytEl.src = embedUrlForVideoId(vid);
+          log('SWITCH iframe -> videoId ' + vid);
+        }
         setMode('live');
-        setTimeout(() => rebuildPlayerAfterReload(), 250);
       } else {
-        log('probe no-live');
+        // If probe says no live, go offair.
+        // (If you want it to "linger" longer, we can add hysteresis.)
+        setMode('offair');
       }
     } catch(e){
-      log('probe error ' + (e && e.name ? e.name : '') );
-    }
-  }
-
-  function startLiveProbeLoop(){
-    if (liveProbeTimer) return;
-    liveProbeTimer = setInterval(probeForLive, config.liveProbeMs);
-    // also fire immediately
-    setTimeout(probeForLive, 400);
-  }
-
-  let iframeEl = document.getElementById('yt-embed');
-
-  function reloadIframe(){
-    // When Off Air, use the channel live_stream endpoint. When LIVE (and we know a videoId), use the specific video.
-    if (mode === 'live' && lastProbedVideoId && isRealVideoId(lastProbedVideoId)){
-      iframeEl.src = embedSrcForVideoId(lastProbedVideoId);
-      log('iframe reload (videoId=' + lastProbedVideoId + ')');
-    } else {
-      iframeEl.src = liveIframeSrc();
-      log('iframe reload (live_stream)');
-    }
-  }
-
-  function isLiveState(s){ return s === 1 || s === 3; }
-  function isRealVideoId(vid){
-    if (!vid) return false;
-    if (vid === 'live_stream') return false;
-    if (vid.length < 10) return false;
-    return true;
-  }
-
-  function noteLiveEvidence(isLive){
-    const now = Date.now();
-    if (isLive){
-      if (!liveConfidenceStartedAt) liveConfidenceStartedAt = now;
-      const elapsedMs = now - liveConfidenceStartedAt;
-      if (debugOn) log('live evidence ' + (elapsedMs/1000).toFixed(1) + 's');
-      if (elapsedMs >= config.settleLiveMs){
-        setMode('live');
-      }
-    } else {
-      liveConfidenceStartedAt = null;
+      showDebug();
+      log('probe error: ' + (e && e.name ? e.name : String(e)));
+      // never brick: stay offair with slideshow
       setMode('offair');
+    } finally {
+      probing = false;
     }
   }
 
-  function detectLive(){
-    if (!player) return;
-    let st = null;
-    try { st = player.getPlayerState(); } catch(e){}
-    let vid = '';
-    try {
-      const vd = player.getVideoData && player.getVideoData();
-      vid = (vd && (vd.video_id || vd.videoId)) ? (vd.video_id || vd.videoId) : '';
-    } catch(e){}
-
-    const liveByState = (typeof st === 'number') && isLiveState(st);
-    const liveByVideoId = isRealVideoId(vid);
-
-    log('state=' + st + ' vid=' + (vid||'(none)') + ' liveByState=' + liveByState + ' liveByVid=' + liveByVideoId);
-    noteLiveEvidence(liveByState || liveByVideoId);
-  }
-
-  function initPlayerNow(){
-    if (!window.YT || !YT.Player) return false;
-    if (player) return true;
-
-    log('Init YT.Player...');
-    try {
-      player = new YT.Player('yt-embed', {
-        events: {
-          onReady: (e) => {
-            log('YT ready');
-            try { e.target.mute(); } catch(_e){}
-            try { e.target.playVideo(); } catch(_e){}
-            if (!detectTimer) detectTimer = setInterval(detectLive, config.detectPollMs);
-          },
-          onStateChange: (e) => {
-            log('onStateChange=' + e.data);
-            if (isLiveState(e.data)) {
-              lastPlayableAt = Date.now();
-              noteLiveEvidence(true);
-            }
-          },
-          onError: (e) => {
-            log('onError=' + e.data);
-            lastErrorAt = Date.now();
-            liveConfidenceStartedAt = null;
-            setMode('offair');
-          }
-        }
-      });
-      return true;
-    } catch(e) {
-      log('YT init threw');
-      return false;
-    }
-  }
-
-  function startInitFallback(){
-    if (initTimer) return;
-    initTimer = setInterval(() => {
-      const ok = initPlayerNow();
-      if (ok){
-        clearInterval(initTimer);
-        initTimer = null;
-        log('YT init fallback success');
-      }
-    }, 500);
-  }
-
-  function rebuildPlayerAfterReload(){
-    if (player && player.destroy){
-      try { player.destroy(); } catch(_e){}
-    }
-    player = null;
-    liveConfidenceStartedAt = null;
-    setTimeout(() => initPlayerNow(), 250);
-  }
-
-  function hardRebuildIframe(){
-    log('HARD rebuild iframe');
-    const holder = document.getElementById('yt-holder');
-    holder.innerHTML = '<iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
-    iframeEl = document.getElementById('yt-embed');
-    reloadIframe();
-    rebuildPlayerAfterReload();
-  }
-
-  function startReloadLoop(){
-    if (reloadTimer) return;
-    reloadTimer = setInterval(() => {
-      const now = Date.now();
-      const recentlyPlayable = (now - lastPlayableAt) < config.stuckLiveMs;
-      const recentlyErrored  = (now - lastErrorAt) < config.stuckLiveMs;
-
-      if (mode === 'offair'){
-        reloadIframe();
-        rebuildPlayerAfterReload();
-        return;
-      }
-
-      if (mode === 'live' && !recentlyPlayable){
-        log('LIVE but not playable -> self-heal');
-        if (recentlyErrored) hardRebuildIframe();
-        else { reloadIframe(); rebuildPlayerAfterReload(); }
-      }
-    }, config.iframeReloadMs);
-  }
-
+  // If tab becomes visible, do an immediate check.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden){
-      log('visible -> reload');
-      reloadIframe();
-      rebuildPlayerAfterReload();
-      setTimeout(() => detectLive(), 1000);
-    }
+    if (!document.hidden) liveLoop();
   });
 
-  renderSlides();
-  setMode('offair');
-  reloadIframe();
-
-  const s = document.createElement('script');
-  s.src = 'https://www.youtube.com/iframe_api';
-  s.async = true;
-  document.head.appendChild(s);
-
-  window.onYouTubeIframeAPIReady = () => {
-    log('YT IFrame API ready');
-    initPlayerNow();
-  };
-
-  startInitFallback();
-  startReloadLoop();
-  startLiveProbeLoop();
+  // ======== BOOT ========
+  log('boot ok');
+  startSlideshow();
+  liveLoop();
+  setInterval(liveLoop, CONFIG.liveProbeMs);
 })();
 </script>
 </body>
