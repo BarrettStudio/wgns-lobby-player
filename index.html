@@ -6,18 +6,8 @@
 <title>Big G TV Lobby</title>
 <style>
 :root { --bg:#0b1220; --panel:rgba(255,255,255,.92); --border:rgba(255,255,255,.14); --text:#0f172a; --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25); }
-html,body{height:100%}
-body{
-  margin:0; min-height:100vh;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-  color:var(--text);
-  background: var(--bg);
-  display:grid; place-items:center;
-  padding:clamp(14px,3vw,28px);
-  box-sizing:border-box;
-  position:relative;
-  overflow:hidden;
-}
+html,body{background:var(--bg);min-height:100vh;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+body{background:var(--bg);min-height:100vh;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
 body::before{
   content:"";
   position:absolute; inset:-18%;
@@ -41,46 +31,15 @@ body::after{
   50%  { transform: translate3d(2.5%, 1.2%, 0) scale(1.12); opacity:1; }
   100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
 }
-.wg-app{
-  width:min(1200px,100%);
-  height:min(720px,100%);
-  max-height:calc(100vh - clamp(28px, 6vw, 56px));
-  background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  display:flex; flex-direction:column;
-  backdrop-filter:blur(10px);
-}
-.wg-header{
-  display:flex; align-items:center; gap:14px;
-  padding:14px 16px;
-  border-bottom:1px solid rgba(15,23,42,.08);
-  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
-  flex:0 0 auto;
-}
-.wg-title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
+.wg-app{width:100vw;height:100vh;background:transparent;border:none;border-radius:0;box-shadow:none;overflow:hidden;display:flex;flex-direction:column;}
+.wg-header{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:12px;padding:16px 18px;background:rgba(0,0,0,.35);backdrop-filter:blur(10px);}
+.wg-title{font-size:clamp(18px,2.2vw,26px);font-weight:900;letter-spacing:-.02em;color:rgba(255,255,255,.95);text-shadow:0 1px 12px rgba(0,0,0,.35);}
 .wg-spacer{margin-left:auto}
-.wg-badge{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:7px 10px; border-radius:999px;
-  border:1px solid rgba(15,23,42,.10);
-  background:rgba(255,255,255,.75);
-  font-weight:900;
-  color:rgba(15,23,42,.85);
-}
+.wg-badge{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.9);font-weight:700;}
 .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
 .dot.live{background:#22c55e}
-.wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
-.wg-stage{
-  position:relative;
-  width:100%; height:100%;
-  border-radius:16px;
-  overflow:hidden;
-  background:#000;
-  border:1px solid rgba(15,23,42,.10);
-}
+.wg-body{padding:0;flex:1 1 auto;min-height:0;display:flex;}
+.wg-stage{position:relative;width:100%;height:100%;overflow:hidden;background:#000;}
 .wg-video{ position:absolute; inset:0; opacity:0; transition: opacity .7s ease-in-out; }
 .wg-video.is-on{opacity:1}
 #yt-holder, #yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
@@ -117,7 +76,7 @@ body::after{
   pointer-events:none;
   z-index:2;
 }
-.wg-debug{
+.wg-debug{top:auto;bottom:12px;
   position:absolute; left:12px; bottom:12px;
   padding:10px 12px; border-radius:12px;
   background:rgba(0,0,0,.55);
@@ -177,6 +136,38 @@ body::after{
     slideSeconds: 8
   };
 
+  // --- Live detection via YouTube /live page (CORS-friendly through r.jina.ai) ---
+  const JINA_PREFIX = 'https://r.jina.ai/https://';
+  const LIVE_PAGE_URL = `https://www.youtube.com/channel/${config.channelId}/live`;
+
+  async function fetchLiveVideoId(){
+    try{
+      const res = await fetch(JINA_PREFIX + LIVE_PAGE_URL.replace('https://',''), { cache:'no-store' });
+      if(!res.ok) return null;
+      const txt = await res.text();
+
+      // Prefer explicit live marker
+      const liveIdx = txt.indexOf('"isLiveContent":true');
+      if(liveIdx !== -1){
+        const win = txt.slice(Math.max(0, liveIdx-2500), liveIdx+5000);
+        const m = win.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+        if(m) return m[1];
+      }
+      // Fallback: first watch link
+      const m2 = txt.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/);
+      return m2 ? m2[1] : null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function videoEmbedSrc(videoId){
+    return 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(videoId)
+      + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
+      + '&_=' + Date.now();
+  }
+
+
   // DOM
   const app = document.querySelector('.wg-app');
   const slideshowWrap = document.getElementById('wg-slideshow');
@@ -201,13 +192,14 @@ body::after{
   let liveEvidenceStartedAt = null;
 
   // Debug toggle (?debug=1)
-  const debugOn = /[?&]debug=1\b/i.test(location.search);
+  const debugOn = /[?&]debug=1/i.test(location.search);
   if (!debugOn) dbg.style.display = 'none';
 
   function log(msg){
     if (!debugOn) return;
     const ts = new Date().toLocaleTimeString();
-    dbg.textContent = '[' + ts + '] ' + msg + '\n' + (dbg.textContent || '');
+    dbg.textContent = '[' + ts + '] ' + msg + '
+' + (dbg.textContent || '');
   }
 
   function setUI(live){
@@ -272,7 +264,10 @@ body::after{
 
   const iframeEl = document.getElementById('yt-embed');
 
-  function destroyPlayer(){
+  
+  let lastLiveVideoId = null;
+  let livePageLastCheck = 0;
+function destroyPlayer(){
     if (!player) return;
     try { player.destroy(); } catch(_e){}
     player = null;
@@ -305,12 +300,11 @@ body::after{
     }
   }
 
-  function refreshEmbed(reason){
+  function refreshEmbed(reason, videoId){
     lastReloadAt = Date.now();
-    log('refreshEmbed: ' + reason);
+    log('refreshEmbed: ' + reason + (videoId ? (' vid=' + videoId) : ''));
     destroyPlayer();
-    iframeEl.src = liveIframeSrc();
-    // Let the iframe swap in before we try building the JS API player.
+    iframeEl.src = videoId ? videoEmbedSrc(videoId) : liveIframeSrc();
     setTimeout(buildPlayer, 250);
   }
 
@@ -375,6 +369,27 @@ body::after{
         if (sinceReload >= config.iframeReloadMs) {
           refreshEmbed('offair_poll');
         }
+      
+        // Also poll the channel /live page every ~5s. This catches new lives even when the live_stream embed is stale.
+        const now = Date.now();
+        if (now - livePageLastCheck >= 5000) {
+          livePageLastCheck = now;
+          fetchLiveVideoId().then((vid) => {
+            if (vid && vid !== lastLiveVideoId) {
+              lastLiveVideoId = vid;
+              refreshEmbed('live_page_poll', vid);
+              setMode('live');
+            } else if (!vid) {
+              lastLiveVideoId = null;
+              if (mode === 'live') {
+                // if the live ended, drop back
+                refreshEmbed('live_ended_reset');
+                setMode('offair');
+              }
+            }
+          });
+        }
+
       }, 800); // lightweight heartbeat
     }
   }
@@ -383,6 +398,7 @@ body::after{
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden){
       refreshEmbed('tab_visible');
+      fetchLiveVideoId().then((vid)=>{ if(vid){ lastLiveVideoId = vid; refreshEmbed('tab_visible_live', vid); setMode('live'); } });
     }
   });
 
