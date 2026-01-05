@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Big G TV Lobby</title>
 <style>
-
 :root { --bg:#0b1220; --panel:rgba(255,255,255,.92); --border:rgba(255,255,255,.14); --text:#0f172a; --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25); }
 html,body{height:100%}
 body{
@@ -13,8 +12,10 @@ body{
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
   color:var(--text);
   background: var(--bg);
-  display:block;
-  padding:0;
+  display:grid; place-items:center;
+  padding:clamp(14px,3vw,28px);
+  box-sizing:border-box;
+  position:relative;
   overflow:hidden;
 }
 body::before{
@@ -41,12 +42,13 @@ body::after{
   100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
 }
 .wg-app{
-  width:100vw;
-  height:100vh;
+  width:min(1200px,100%);
+  height:min(720px,100%);
+  max-height:calc(100vh - clamp(28px, 6vw, 56px));
   background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
-  border:0;
-  border-radius:0;
-  box-shadow:none;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
   overflow:hidden;
   display:flex; flex-direction:column;
   backdrop-filter:blur(10px);
@@ -70,7 +72,7 @@ body::after{
 }
 .dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
 .dot.live{background:#22c55e}
-.wg-body{padding:12px; flex:1 1 auto; min-height:0; display:flex}
+.wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
 .wg-stage{
   position:relative;
   width:100%; height:100%;
@@ -124,7 +126,6 @@ body::after{
   display:none; z-index:10; white-space:pre-wrap;
 }
 .wg-debug.on{display:block}
-
 </style>
 </head>
 <body>
@@ -145,28 +146,25 @@ body::after{
           <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
         </div>
       </div>
-      <div class="wg-slideshow" id="wg-slideshow">
-      <div class="wg-slide is-active" style="--bgimg: url(\'WGNS.png?v=1767576144\');"></div>
-      <div class="wg-slide" style="--bgimg: url(\'BGTV.png?v=1767576144\');"></div>
-      <div class="wg-slide" style="--bgimg: url(\'PTS.png?v=1767576144\');"></div>
-      <div class="wg-slide" style="--bgimg: url(\'RWX.png?v=1767576144\');"></div>
-    </div>
+      <div class="wg-slideshow" id="wg-slideshow"></div>
       <div class="wg-debug" id="wg-debug"></div>
     </div>
   </section>
 </main>
 
 <script>
-
 (() => {
-  const CACHE_BUST = '1767576144';
+  const CACHE_BUST = '1767426497';
 
   const config = {
     channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    iframeReloadMs: 6000,
+    iframeReloadMs: 9000,
     detectPollMs: 900,
+    liveProbeMs: 4000,
+    liveProbeTimeoutMs: 4500,
+    liveProxy: 'https://r.jina.ai/https://www.youtube.com/channel/',
     settleLiveMs: 2500,
-    stuckLiveMs: 6000,
+    stuckLiveMs: 8000,
     slides: [
       'WGNS.png?v=' + CACHE_BUST,
       'BGTV.png?v=' + CACHE_BUST,
@@ -183,7 +181,13 @@ body::after{
   const slideshowWrap = document.getElementById('wg-slideshow');
   const dbg = document.getElementById('wg-debug');
 
-  const debugOn = location.hash.includes('debug');
+  const debugOn = (() => {
+    try {
+      const qs = new URLSearchParams(location.search);
+      if (qs.get('debug') === '1' || qs.get('debug') === 'true') return true;
+    } catch(_e){}
+    return location.hash.includes('debug');
+  })();
   if (debugOn) dbg.classList.add('on');
 
   let mode = 'offair';
@@ -199,12 +203,21 @@ body::after{
   let slideTimer = null;
   let activeIdx = 0;
 
-  function log(msg){
-    if (!debugOn) return;
+  function log(msg, force=false){
+    if (!debugOn && !force) return;
+    if (!dbg.classList.contains('on')) dbg.classList.add('on');
     const ts = new Date().toLocaleTimeString();
     dbg.textContent = '[' + ts + '] ' + msg + '
 ' + dbg.textContent.slice(0, 1700);
   }
+  // Surface JS errors on-screen so the page never "silently" fails
+  window.addEventListener('error', (e) => {
+    log('ERROR: ' + (e.message || 'unknown') + (e.filename ? (' @ ' + e.filename + ':' + e.lineno) : ''), true);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e && e.reason;
+    log('PROMISE REJECTION: ' + (r && (r.message || String(r)) || 'unknown'), true);
+  });
 
   function setUI(live){
     dot.classList.toggle('live', !!live);
@@ -218,11 +231,14 @@ body::after{
     mode = next;
     setUI(mode === 'live');
     log('MODE => ' + mode);
+    if (mode === 'offair') startLiveProbeLoop();
   }
 
   function renderSlides(){
-    // Slides are now in the HTML so they show even if JS fails.
-    // We only need to start the rotation.
+    const slidesHtml = config.slides.map((src, i) =>
+      '<div class="wg-slide' + (i===0?' is-active':'') + '" style="--bgimg: url(\'' + src + '\');"></div>'
+    ).join('');
+    slideshowWrap.innerHTML = slidesHtml;
     activeIdx = 0;
     startSlideshow();
   }
@@ -247,11 +263,89 @@ body::after{
       + '&_=' + Date.now();
   }
 
+  function embedSrcForVideoId(videoId){
+    return 'https://www.youtube-nocookie.com/embed/'
+      + encodeURIComponent(videoId)
+      + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
+      + '&_=' + Date.now();
+  }
+
+  async function fetchWithTimeout(url, timeoutMs){
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try{
+      const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+      const txt = await res.text();
+      return { ok: res.ok, status: res.status, text: txt };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  function parseLiveVideoIdFromChannelLivePage(htmlText){
+    // The proxied HTML often contains ytInitialPlayerResponse JSON. We look for isLiveNow + videoId.
+    // 1) Strong signal: "isLiveNow":true ... "videoId":"<id>"
+    const liveNowIdx = htmlText.indexOf('"isLiveNow":true');
+    if (liveNowIdx !== -1){
+      const slice = htmlText.slice(Math.max(0, liveNowIdx - 2000), liveNowIdx + 2000);
+      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{10,})"/);
+      if (m) return m[1];
+    }
+    // 2) Fallback: look for "isLive":true near a videoId
+    const isLiveIdx = htmlText.indexOf('"isLive":true');
+    if (isLiveIdx !== -1){
+      const slice = htmlText.slice(Math.max(0, isLiveIdx - 2500), isLiveIdx + 2500);
+      const m = slice.match(/"videoId":"([a-zA-Z0-9_-]{10,})"/);
+      if (m) return m[1];
+    }
+    return '';
+  }
+
+  let liveProbeTimer = null;
+  let lastProbedVideoId = '';
+
+  async function probeForLive(){
+    if (mode !== 'offair') return;
+    const url = config.liveProxy + encodeURIComponent(config.channelId) + '/live';
+    try{
+      const res = await fetchWithTimeout(url, config.liveProbeTimeoutMs);
+      log('probe status=' + res.status);
+      if (!res.ok) return;
+      const vid = parseLiveVideoIdFromChannelLivePage(res.text) || '';
+      if (vid && isRealVideoId(vid)){
+        lastProbedVideoId = vid;
+        log('probe FOUND live videoId=' + vid);
+        // Switch iframe to specific video to avoid stale live_stream embed
+        iframeEl.src = embedSrcForVideoId(vid);
+        // Give it a moment, then rebuild JS API player (optional)
+        setMode('live');
+        setTimeout(() => rebuildPlayerAfterReload(), 250);
+      } else {
+        log('probe no-live');
+      }
+    } catch(e){
+      log('probe error ' + (e && e.name ? e.name : '') );
+    }
+  }
+
+  function startLiveProbeLoop(){
+    if (liveProbeTimer) return;
+    liveProbeTimer = setInterval(probeForLive, config.liveProbeMs);
+    // also fire immediately
+    setTimeout(probeForLive, 400);
+  }
+
   let iframeEl = document.getElementById('yt-embed');
 
   function reloadIframe(){
-    iframeEl.src = liveIframeSrc();
-    log('iframe reload');
+    // When Off Air, use the channel live_stream endpoint. When LIVE (and we know a videoId), use the specific video.
+    if (mode === 'live' && lastProbedVideoId && isRealVideoId(lastProbedVideoId)){
+      iframeEl.src = embedSrcForVideoId(lastProbedVideoId);
+      log('iframe reload (videoId=' + lastProbedVideoId + ')');
+    } else {
+      iframeEl.src = liveIframeSrc();
+      log('iframe reload (live_stream)');
+    }
   }
 
   function isLiveState(s){ return s === 1 || s === 3; }
@@ -352,23 +446,62 @@ body::after{
   }
 
   function hardRebuildIframe(){
+    log('HARD rebuild iframe');
     const holder = document.getElementById('yt-holder');
-    if (!holder) return;
-    // Remove old iframe
     holder.innerHTML = '<iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
     iframeEl = document.getElementById('yt-embed');
-    // Always load a fresh embed URL (cache-busted)
-    iframeEl.src = liveIframeSrc();
-    log('iframe HARD rebuild');
+    reloadIframe();
+    rebuildPlayerAfterReload();
+  }
 
-    // Rebuild YT player wrapper (lets us read play state)
-    try { if (player && player.destroy) player.destroy(); } catch(_e){}
-    player = null;
+  function startReloadLoop(){
+    if (reloadTimer) return;
+    reloadTimer = setInterval(() => {
+      const now = Date.now();
+      const recentlyPlayable = (now - lastPlayableAt) < config.stuckLiveMs;
+      const recentlyErrored  = (now - lastErrorAt) < config.stuckLiveMs;
 
-    // Give the iframe a moment to exist before binding the API
-    setTimeout(() => { initPlayerNow(); }, 350);
-  })();
+      if (mode === 'offair'){
+        reloadIframe();
+        rebuildPlayerAfterReload();
+        return;
+      }
 
+      if (mode === 'live' && !recentlyPlayable){
+        log('LIVE but not playable -> self-heal');
+        if (recentlyErrored) hardRebuildIframe();
+        else { reloadIframe(); rebuildPlayerAfterReload(); }
+      }
+    }, config.iframeReloadMs);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden){
+      log('visible -> reload');
+      reloadIframe();
+      rebuildPlayerAfterReload();
+      setTimeout(() => detectLive(), 1000);
+    }
+  });
+
+  renderSlides();
+  setMode('offair');
+  reloadIframe();
+
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.async = true;
+  document.head.appendChild(s);
+
+  window.onYouTubeIframeAPIReady = () => {
+    log('YT IFrame API ready');
+    initPlayerNow();
+  };
+
+  startInitFallback();
+  startReloadLoop();
+  startLiveProbeLoop();
+})();
 </script>
 </body>
 </html>
