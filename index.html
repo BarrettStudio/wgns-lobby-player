@@ -127,8 +127,8 @@
 
 <script>
 (() => {
-  const BUILD = 'v27.0';
-  const BUILD_TS = '2026-01-06';
+  const BUILD = 'v28.0';
+  const BUILD_TS = '2026-01-06b';
   // ======== CONFIG ========
   const CONFIG = {
     // Your channel ID:
@@ -379,7 +379,33 @@
     return { ok: res.ok, status: res.status, url: target, text };
   }
 
-  async function liveLoop(){
+  
+  function setModeUI(mode){
+    // mode: 'LIVE' or 'OFFAIR'
+    const titleEl = document.getElementById('wg-title');
+    const subEl = document.getElementById('wg-sub');
+    const statusEl = document.getElementById('status');
+    const slideEl = document.getElementById('slide');
+    const ytEl = document.getElementById('yt-embed');
+
+    if (!titleEl || !subEl || !statusEl || !slideEl || !ytEl) return;
+
+    if (mode === 'LIVE'){
+      statusEl.textContent = 'LIVE';
+      titleEl.textContent = 'Big G TV is LIVE';
+      subEl.textContent = 'You’re watching live on YouTube.';
+      slideEl.style.display = 'none';
+      ytEl.style.display = 'block';
+    } else {
+      statusEl.textContent = 'OFF AIR';
+      titleEl.textContent = 'Big G TV is Off Air (for now)';
+      subEl.textContent = 'We’ll switch to LIVE automatically when we go live.';
+      ytEl.style.display = 'none';
+      slideEl.style.display = 'block';
+    }
+  }
+
+async function liveLoop(){
     if (probing) return;
     probing = true;
 
