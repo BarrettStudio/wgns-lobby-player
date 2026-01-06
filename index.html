@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Reduce caching on GitHub Pages/CDNs during iteration -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>Big G TV Off Air</title>
 <style>
   :root { --bg:#000; --fg:#fff; --muted:rgba(255,255,255,.7); }
@@ -123,6 +127,8 @@
 
 <script>
 (() => {
+  const BUILD = 'v25.0';
+  const BUILD_TS = '2026-01-05';
   // ======== CONFIG ========
   const CONFIG = {
     // Your channel ID:
@@ -137,6 +143,8 @@
     liveProbeTimeoutMs: 7000,
     // IMPORTANT: keep this HTTPS
     liveProxyPrefix: 'https://r.jina.ai/https://www.youtube.com/channel/',
+    liveProxyHandlePrefix: 'https://r.jina.ai/https://www.youtube.com/@',
+    handle: 'newsradiowgns',
 
     // YouTube embed tuning
     embedParams: 'autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1'
@@ -153,6 +161,12 @@
     debugEl.textContent += `[${ts}] ${msg}\n`;
     debugEl.scrollTop = debugEl.scrollHeight;
   }
+
+  // If debug is enabled, announce build so we can confirm which version is deployed.
+  log(`boot ${BUILD} (${BUILD_TS})`);
+
+  // Always show build/version in debug so we can confirm deploy.
+  log(`boot ok (${BUILD} ${BUILD_TS})`);
   // If anything errors, show it.
   window.addEventListener('error', (e) => {
     showDebug();
@@ -236,56 +250,124 @@
   }
 
   function extractLiveVideoId(htmlText){
-    // NOTE: The /live page contains many videoIds (recommendations, etc.).
-    // We must extract the *primary* live video reliably.
-    const hasLiveSignals =
+    // The YouTube /live page HTML can vary a lot, and some proxies strip big script blobs.
+    // Strategy:
+    //  1) Prefer explicit embed/watch URLs from OG/meta tags (these usually point at the primary content).
+    //  2) If we can detect "live" signals, only then trust broader patterns.
+    //  3) Never pick random watch?v IDs from recommendations.
+
+    const liveSignals = (
       htmlText.includes('"isLiveNow":true') ||
       htmlText.includes('"isLiveContent":true') ||
-      htmlText.includes('LIVE_STREAM') ||
-      htmlText.includes('liveStreamability');
+      htmlText.includes('LIVE_NOW') ||
+      htmlText.includes('liveStreamability') ||
+      htmlText.includes('isLiveBroadcast') ||
+      htmlText.includes('"liveBroadcastDetails"')
+    );
 
-    // 1) Canonical / og:url are the safest: they point to the primary watch URL when live.
-    // - <link rel="canonical" href="https://www.youtube.com/watch?v=VIDEOID">
-    let m = htmlText.match(/<link\s+rel="canonical"\s+href="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && hasLiveSignals) return m[1];
+    // 1) Strong: og:video / embedUrl (often present even when scripts are stripped)
+    let m = htmlText.match(/<meta\s+property="og:video:url"\s+content="https:\/\/www\.youtube\.com\/embed\/([a-zA-Z0-9_-]{11})"/);
+    if (m && liveSignals) return m[1];
 
-    // - <meta property="og:url" content="https://www.youtube.com/watch?v=VIDEOID">
+    m = htmlText.match(/<meta\s+property="og:video:secure_url"\s+content="https:\/\/www\.youtube\.com\/embed\/([a-zA-Z0-9_-]{11})"/);
+    if (m && liveSignals) return m[1];
+
+    m = htmlText.match(/itemprop="embedUrl"\s+content="https:\/\/www\.youtube\.com\/embed\/([a-zA-Z0-9_-]{11})"/);
+    if (m && liveSignals) return m[1];
+
+    // 2) Strong: og:url / canonicalUrl to watch?v=VIDEOID
     m = htmlText.match(/<meta\s+property="og:url"\s+content="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && hasLiveSignals) return m[1];
+    if (m && liveSignals) return m[1];
 
-    // - "canonicalUrl":"https://www.youtube.com/watch?v=VIDEOID"
+    m = htmlText.match(/<link\s+rel="canonical"\s+href="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
+    if (m && liveSignals) return m[1];
+
     m = htmlText.match(/"canonicalUrl":"https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && hasLiveSignals) return m[1];
+    if (m && liveSignals) return m[1];
 
-    // 2) If isLiveNow true is present, grab the nearest videoId around it (player response area).
-    let idx = htmlText.indexOf('"isLiveNow":true');
+    // 3) If scripts are present, pull from ytInitialPlayerResponse.videoDetails.videoId (primary)
+    let idx = htmlText.indexOf('ytInitialPlayerResponse');
     if (idx !== -1){
-      const slice = htmlText.slice(Math.max(0, idx-8000), idx+8000);
-      m = slice.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (m) return m[1];
-    }
-
-    // 3) Look inside ytInitialPlayerResponse for the primary videoDetails.videoId (not recommendations).
-    idx = htmlText.indexOf('ytInitialPlayerResponse');
-    if (idx !== -1){
-      const slice = htmlText.slice(idx, idx + 50000);
+      const slice = htmlText.slice(idx, idx + 80000);
       m = slice.match(/"videoDetails":\{"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (m && hasLiveSignals) return m[1];
-      // fallback (still constrained to having live signals)
+      if (m && liveSignals) return m[1];
+      // as a last resort within player response, find the first videoId only if liveSignals
       m = slice.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (m && hasLiveSignals) return m[1];
+      if (m && liveSignals) return m[1];
     }
 
+    // 4) If we *don't* see live signals, return empty (avoid false positives).
+    return '';
+  }
+
+  async function confirmLiveVideoId(vid){
+    // Confirm by checking the watch page for live signals (more stable than player state).
+    const watchUrl = `https://r.jina.ai/https://www.youtube.com/watch?v=${vid}`;
+    const res = await fetchText(watchUrl, CONFIG.liveProbeTimeoutMs);
+    log(`confirm ${res.status} ${watchUrl}`);
+    if (!res.ok) return false;
+    const t = res.text;
+    return (
+      t.includes('"isLiveNow":true') ||
+      t.includes('"isLiveContent":true') ||
+      t.includes('LIVE_NOW') ||
+      t.includes('liveStreamability') ||
+      t.includes('isLiveBroadcast') ||
+      t.includes('"liveBroadcastDetails"')
+    );
+  }
+
+  async function probeViaOEmbed(url){
+    // Ask YouTube oEmbed what video the /live URL resolves to, then confirm it's live.
+    const oembed = `https://r.jina.ai/https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const res = await fetchText(oembed, CONFIG.liveProbeTimeoutMs);
+    log(`oembed ${res.status} ${oembed}`);
+    if (!res.ok) return '';
+    try{
+      const j = JSON.parse(res.text);
+      const html = j && j.html ? String(j.html) : '';
+      const m = html.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+      if (m && m[1]){
+        const vid = m[1];
+        if (await confirmLiveVideoId(vid)) return vid;
+      }
+    }catch(e){
+      log(`oembed parse err: ${e && e.message ? e.message : e}`);
+    }
     return '';
   }
 
   async function probeLive(){
-    const url = CONFIG.liveProxyPrefix + CONFIG.channelId + '/live';
-    const res = await fetchText(url, CONFIG.liveProbeTimeoutMs);
-    log(`probe ${res.status} ${url}`);
-    if (!res.ok) return '';
-    const vid = extractLiveVideoId(res.text);
-    if (vid && vid.length === 11) return vid;
+    const channelLiveUrl = `https://www.youtube.com/channel/${CONFIG.channelId}/live`;
+    const handleLiveUrl = CONFIG.handle ? `https://www.youtube.com/@${CONFIG.handle}/live` : '';
+
+    // 1) oEmbed resolution + confirm (most reliable when /live HTML is stripped)
+    let vid = await probeViaOEmbed(channelLiveUrl);
+    if (vid) return vid;
+    if (handleLiveUrl){
+      vid = await probeViaOEmbed(handleLiveUrl);
+      if (vid) return vid;
+    }
+
+    // 2) Parse /live page HTML (fast when signals exist)
+    const url1 = CONFIG.liveProxyPrefix + CONFIG.channelId + '/live';
+    let res = await fetchText(url1, CONFIG.liveProbeTimeoutMs);
+    log(`probe ${res.status} ${url1}`);
+    if (res.ok){
+      vid = extractLiveVideoId(res.text);
+      if (vid && vid.length === 11) return vid;
+    }
+
+    if (handleLiveUrl){
+      const url2 = CONFIG.liveProxyHandlePrefix + CONFIG.handle + '/live';
+      res = await fetchText(url2, CONFIG.liveProbeTimeoutMs);
+      log(`probe ${res.status} ${url2}`);
+      if (res.ok){
+        vid = extractLiveVideoId(res.text);
+        if (vid && vid.length === 11) return vid;
+      }
+    }
+
     return '';
   }
 
