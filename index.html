@@ -127,7 +127,7 @@
 
 <script>
 (() => {
-  const BUILD = 'v26.0';
+  const BUILD = 'v27.0';
   const BUILD_TS = '2026-01-06';
   // ======== CONFIG ========
   const CONFIG = {
@@ -330,47 +330,127 @@
     return '';
   }
 
+  
+  // ======== LIVE DETECTION (v27) ========
+  // Why: YouTube oEmbed returns 404 for /live URLs, and the normal channel-live embed can "stick" until refresh.
+  // Approach: Poll the channel/handle /live page through r.jina.ai at a LOW rate + backoff, extract the primary og:url videoId,
+  // then swap the iframe to /embed/<videoId>.
   let probing = false;
-  async function liveLoop(){
-    if (probing) return;
-    probing = true;
-    try{
-      // Always keep the channel-live embed loaded as a fallback
-      if (!ytEl.src) ytEl.src = embedUrlForChannelLive();
+  let backoffMs = 25000;
+  const BACKOFF_MIN = 25000;
+  const BACKOFF_MAX = 5 * 60 * 1000;
 
-      const vid = await probeLive();
-      if (vid){
-        if (vid !== lastVideoId){
-          lastVideoId = vid;
-          ytEl.src = embedUrlForVideoId(vid);
-          log('SWITCH iframe -> videoId ' + vid);
-        }
-        setMode('live');
-      } else {
-        // If probe says no live, go offair.
-        // (If you want it to "linger" longer, we can add hysteresis.)
-        setMode('offair');
-      }
-    } catch(e){
-      showDebug();
-      log('probe error: ' + (e && e.name ? e.name : String(e)));
-      // never brick: stay offair with slideshow
-      setMode('offair');
-    } finally {
-      probing = false;
+  function nextBackoff(success){
+    if (success){
+      backoffMs = BACKOFF_MIN;
+    } else {
+      backoffMs = Math.min(BACKOFF_MAX, Math.floor(backoffMs * 1.6));
     }
   }
 
-  // If tab becomes visible, do an immediate check.
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) liveLoop();
-  });
+  function extractLiveVideoIdFromHtml(html){
+    const s = String(html);
+
+    // 1) Canonical/og:url is the most reliable when the /live endpoint is actively pointing at a live watch page
+    // Example: <meta property="og:url" content="https://www.youtube.com/watch?v=VIDEOID">
+    let m = s.match(/property=["']og:url["'][^>]*content=["']https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})["']/i);
+    if (m && m[1]) return m[1];
+
+    m = s.match(/rel=["']canonical["'][^>]*href=["']https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})["']/i);
+    if (m && m[1]) return m[1];
+
+    // 2) JSON blobs sometimes include canonicalBaseUrl when live
+    m = s.match(/"canonicalBaseUrl"\s*:\s*"\/watch\?v=([A-Za-z0-9_-]{11})"/);
+    if (m && m[1]) return m[1];
+
+    // 3) As a fallback, only accept a videoId if we see strong live indicators nearby
+    const liveSignal = /"isLiveNow"\s*:\s*true|"isLiveContent"\s*:\s*true|LIVE_NOW|liveStreamability|isLiveBroadcast/i.test(s);
+    if (liveSignal){
+      m = s.match(/"videoId"\s*:\s*"([A-Za-z0-9_-]{11})"/);
+      if (m && m[1]) return m[1];
+    }
+    return null;
+  }
+
+  async function fetchJina(url){
+    const target = 'https://r.jina.ai/https://www.youtube.com' + url;
+    const res = await fetch(target, { cache: 'no-store' });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, url: target, text };
+  }
+
+  async function liveLoop(){
+    if (probing) return;
+    probing = true;
+
+    try{
+      // Try both channel and handle /live routes; whichever yields a real og:url watch page wins.
+      const candidates = [
+        '/channel/' + CONFIG.channelId + '/live',
+        '/@' + CONFIG.handle + '/live'
+      ];
+
+      let found = null;
+
+      for (const path of candidates){
+        let res;
+        try{
+          res = await fetchJina(path);
+          log(`probe ${res.status} ${res.url}`);
+        } catch (e){
+          log(`probe error (${path}) ${e && e.name ? e.name : e}`);
+          continue;
+        }
+
+        // Handle rate limits gracefully
+        if (res.status === 429){
+          // Do not spam; backoff
+          continue;
+        }
+        if (!res.ok){
+          continue;
+        }
+
+        const vid = extractLiveVideoIdFromHtml(res.text);
+        if (vid){
+          found = vid;
+          break;
+        }
+      }
+
+      if (found){
+        if (CONFIG.currentMode !== 'LIVE' || CONFIG.currentVideoId !== found){
+          log(`SWITCH iframe -> videoId ${found}`);
+          CONFIG.currentVideoId = found;
+          CONFIG.currentMode = 'LIVE';
+          setModeUI('LIVE');
+
+          // Swap iframe to the specific video (more reliable than live_stream?channel=...)
+          ytEl.src = embedUrlForVideoId(found);
+        }
+        nextBackoff(true);
+      } else {
+        // No live detected
+        if (CONFIG.currentMode !== 'OFFAIR'){
+          CONFIG.currentMode = 'OFFAIR';
+          CONFIG.currentVideoId = null;
+          setModeUI('OFFAIR');
+          ytEl.src = offairEmbedUrl();
+          log('MODE -> OFFAIR');
+        }
+        nextBackoff(false);
+      }
+    } finally {
+      probing = false;
+      setTimeout(liveLoop, backoffMs);
+    }
+  }
+
 
   // ======== BOOT ========
   log('boot ok');
   startSlideshow();
   liveLoop();
-  setInterval(liveLoop, CONFIG.liveProbeMs);
 })();
 </script>
 </body>
