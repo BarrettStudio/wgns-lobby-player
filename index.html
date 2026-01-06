@@ -127,8 +127,8 @@
 
 <script>
 (() => {
-  const BUILD = 'v25.0';
-  const BUILD_TS = '2026-01-05';
+  const BUILD = 'v26.0';
+  const BUILD_TS = '2026-01-06';
   // ======== CONFIG ========
   const CONFIG = {
     // Your channel ID:
@@ -275,28 +275,6 @@
     m = htmlText.match(/itemprop="embedUrl"\s+content="https:\/\/www\.youtube\.com\/embed\/([a-zA-Z0-9_-]{11})"/);
     if (m && liveSignals) return m[1];
 
-    // 2) Strong: og:url / canonicalUrl to watch?v=VIDEOID
-    m = htmlText.match(/<meta\s+property="og:url"\s+content="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && liveSignals) return m[1];
-
-    m = htmlText.match(/<link\s+rel="canonical"\s+href="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && liveSignals) return m[1];
-
-    m = htmlText.match(/"canonicalUrl":"https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"/);
-    if (m && liveSignals) return m[1];
-
-    // 3) If scripts are present, pull from ytInitialPlayerResponse.videoDetails.videoId (primary)
-    let idx = htmlText.indexOf('ytInitialPlayerResponse');
-    if (idx !== -1){
-      const slice = htmlText.slice(idx, idx + 80000);
-      m = slice.match(/"videoDetails":\{"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (m && liveSignals) return m[1];
-      // as a last resort within player response, find the first videoId only if liveSignals
-      m = slice.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (m && liveSignals) return m[1];
-    }
-
-    // 4) If we *don't* see live signals, return empty (avoid false positives).
     return '';
   }
 
@@ -319,7 +297,7 @@
 
   async function probeViaOEmbed(url){
     // Ask YouTube oEmbed what video the /live URL resolves to, then confirm it's live.
-    const oembed = `https://r.jina.ai/https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const oembed = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const res = await fetchText(oembed, CONFIG.liveProbeTimeoutMs);
     log(`oembed ${res.status} ${oembed}`);
     if (!res.ok) return '';
@@ -347,25 +325,6 @@
     if (handleLiveUrl){
       vid = await probeViaOEmbed(handleLiveUrl);
       if (vid) return vid;
-    }
-
-    // 2) Parse /live page HTML (fast when signals exist)
-    const url1 = CONFIG.liveProxyPrefix + CONFIG.channelId + '/live';
-    let res = await fetchText(url1, CONFIG.liveProbeTimeoutMs);
-    log(`probe ${res.status} ${url1}`);
-    if (res.ok){
-      vid = extractLiveVideoId(res.text);
-      if (vid && vid.length === 11) return vid;
-    }
-
-    if (handleLiveUrl){
-      const url2 = CONFIG.liveProxyHandlePrefix + CONFIG.handle + '/live';
-      res = await fetchText(url2, CONFIG.liveProbeTimeoutMs);
-      log(`probe ${res.status} ${url2}`);
-      if (res.ok){
-        vid = extractLiveVideoId(res.text);
-        if (vid && vid.length === 11) return vid;
-      }
     }
 
     return '';
