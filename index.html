@@ -1,539 +1,278 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Big G TV Lobby</title>
-<style>
-:root { --bg:#0b1220; --panel:rgba(255,255,255,.92); --border:rgba(255,255,255,.14); --text:#0f172a; --radius:18px; --shadow:0 18px 48px rgba(0,0,0,.25); }
-html,body{height:100%}
-body{
-  margin:0; min-height:100vh;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-  color:var(--text);
-  background: var(--bg);
-  display:grid; place-items:center;
-  padding:clamp(14px,3vw,28px);
-  box-sizing:border-box;
-  position:relative;
-  overflow:hidden;
-}
-body::before{
-  content:"";
-  position:absolute; inset:-18%;
-  background:
-    radial-gradient(1200px 600px at 15% 10%, rgba(239,68,68,.24), transparent 60%),
-    radial-gradient(900px 520px at 85% 20%, rgba(249,115,22,.18), transparent 55%),
-    radial-gradient(1100px 700px at 50% 100%, rgba(59,130,246,.12), transparent 60%);
-  filter: blur(28px);
-  transform: translate3d(0,0,0) scale(1.10);
-  animation: bgDrift 18s ease-in-out infinite alternate;
-  z-index:-1;
-}
-body::after{
-  content:"";
-  position:absolute; inset:0;
-  background: radial-gradient(1200px 700px at 50% 40%, rgba(0,0,0,0), rgba(0,0,0,.30));
-  z-index:-1;
-}
-@keyframes bgDrift{
-  0%   { transform: translate3d(-2.5%, -1.5%, 0) scale(1.10); opacity:.95; }
-  50%  { transform: translate3d(2.5%, 1.2%, 0) scale(1.12); opacity:1; }
-  100% { transform: translate3d(-1.0%, 2.0%, 0) scale(1.11); opacity:.97; }
-}
-.wg-app{
-  width:min(1200px,100%);
-  height:min(720px,100%);
-  max-height:calc(100vh - clamp(28px, 6vw, 56px));
-  background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.86));
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  display:flex; flex-direction:column;
-  backdrop-filter:blur(10px);
-}
-.wg-header{
-  display:flex; align-items:center; gap:14px;
-  padding:14px 16px;
-  border-bottom:1px solid rgba(15,23,42,.08);
-  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.88));
-  flex:0 0 auto;
-}
-.wg-title{font-weight:950; letter-spacing:-.02em; font-size:1.02rem; line-height:1.1}
-.wg-spacer{margin-left:auto}
-.wg-badge{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:7px 10px; border-radius:999px;
-  border:1px solid rgba(15,23,42,.10);
-  background:rgba(255,255,255,.75);
-  font-weight:900;
-  color:rgba(15,23,42,.85);
-}
-.dot{width:9px; height:9px; border-radius:99px; background:#9ca3af}
-.dot.live{background:#22c55e}
-.wg-body{padding:16px; flex:1 1 auto; min-height:0; display:flex}
-.wg-stage{
-  position:relative;
-  width:100%; height:100%;
-  border-radius:16px;
-  overflow:hidden;
-  background:#000;
-  border:1px solid rgba(15,23,42,.10);
-}
-.wg-video{ position:absolute; inset:0; opacity:0; transition: opacity .7s ease-in-out; }
-.wg-video.is-on{opacity:1}
-#yt-holder, #yt-holder iframe{position:absolute; inset:0; width:100%; height:100%; border:none}
-.wg-slideshow{ position:absolute; inset:0; opacity:1; transition: opacity .7s ease-in-out; }
-.wg-slideshow.is-off{opacity:0; pointer-events:none}
-.wg-slideshow::after{
-  content:"";
-  position:absolute; inset:0;
-  background:
-    radial-gradient(900px 540px at 50% 45%, rgba(255,255,255,.10), transparent 60%),
-    radial-gradient(1200px 700px at 20% 20%, rgba(239,68,68,.10), transparent 60%),
-    radial-gradient(1000px 700px at 80% 70%, rgba(59,130,246,.10), transparent 60%);
-  pointer-events:none;
-  mix-blend-mode:soft-light;
-  z-index:3;
-}
-.wg-slide{ position:absolute; inset:0; opacity:0; transition: opacity 1.2s ease-in-out; z-index:1; }
-.wg-slide.is-active{opacity:1}
-.wg-slide::before{
-  content:"";
-  position:absolute; inset:-4%;
-  background-image: var(--bgimg);
-  background-size:cover;
-  background-position:center;
-  transform:scale(1);
-  filter:saturate(1.02);
-}
-.wg-slide.is-active::before{ animation: wgPulse 6s ease-in-out infinite; }
-@keyframes wgPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
-.wg-slide::after{
-  content:"";
-  position:absolute; inset:0;
-  background: radial-gradient(900px 600px at 50% 50%, transparent 45%, rgba(0,0,0,.28));
-  pointer-events:none;
-  z-index:2;
-}
-.wg-debug{
-  position:absolute; left:12px; bottom:12px;
-  padding:10px 12px; border-radius:12px;
-  background:rgba(0,0,0,.55);
-  color:rgba(255,255,255,.92);
-  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  display:none; z-index:10; white-space:pre-wrap;
-}
-.wg-debug.on{display:block}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WGNS / Big G TV Lobby</title>
+  <meta name="color-scheme" content="dark" />
+  <style>
+    :root{
+      --bg:#000;
+      --fade: 900ms;
+    }
+    html, body { height:100%; margin:0; background:var(--bg); overflow:hidden; }
+    #wrap { position:relative; width:100%; height:100%; background:var(--bg); }
+    #playerLayer, #slideshowLayer { position:absolute; inset:0; }
+    #slideshowLayer { display:block; background:var(--bg); }
+    #playerLayer { display:none; background:var(--bg); }
+    #slideshowLayer img{
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      object-fit:cover;
+      opacity:0;
+      transition: opacity var(--fade) linear;
+    }
+    #slideshowLayer img.show{ opacity:1; }
+
+    /* Small status badge (optional) */
+    #badge{
+      position:absolute; left:18px; bottom:18px;
+      padding:8px 10px; border-radius:12px;
+      background:rgba(0,0,0,.55);
+      color:#fff;
+      font: 600 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      letter-spacing:.2px; user-select:none;
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    #badge small{ display:block; opacity:.75; font-weight:500; margin-top:2px; }
+    #badge.offline::before{ content:"● "; color:#ff5252; }
+    #badge.online::before{ content:"● "; color:#35d07f; }
+
+    #twitch-embed, iframe { width:100% !important; height:100% !important; }
+  </style>
+
+  <!-- Twitch embed SDK -->
+  <script src="https://player.twitch.tv/js/embed/v1.js"></script>
 </head>
 <body>
-<main class="wg-app">
-  <header class="wg-header">
-    <div class="wg-title" id="wg-title">Big G TV is Off Air (for now)</div>
-    <div class="wg-spacer"></div>
-    <div class="wg-badge">
-      <span class="dot" id="wg-dot"></span>
-      <span id="wg-live-text">Off Air</span>
+  <div id="wrap">
+    <div id="slideshowLayer" aria-label="Offline slideshow"></div>
+
+    <div id="playerLayer" aria-label="Twitch player">
+      <div id="twitch-embed"></div>
     </div>
-  </header>
 
-  <section class="wg-body">
-    <div class="wg-stage">
-      <div class="wg-video" id="wg-video">
-        <div id="yt-holder">
-          <iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-        </div>
-      </div>
-      <div class="wg-slideshow" id="wg-slideshow"></div>
-      <div class="wg-debug" id="wg-debug"></div>
-    </div>
-  </section>
-</main>
+    <div id="badge" class="offline">OFFLINE<small>Showing lobby loop</small></div>
+  </div>
 
-<script>
-(() => {
-  const CACHE_BUST = '1767664970';
+  <script>
+    // ===================== CONFIG =====================
+    const CONFIG = {
+      channel: "wgnsbiggtv",
 
-  const config = {
-    channelId: 'UCaR9jZW5TJNrSg7w70czrsw',
-    handle: 'newsradiowgns',
-    iframeReloadMs: 9000,
-    detectPollMs: 900,
-    settleLiveMs: 2500,
-    stuckLiveMs: 8000,
-    slides: [
-      'WGNS.png?v=' + CACHE_BUST,
-      'BGTV.png?v=' + CACHE_BUST,
-      'PTS.png?v=' + CACHE_BUST,
-      'RWX.png?v=' + CACHE_BUST
-    ],
-    slideSeconds: 8
-  };
+      // IMPORTANT: Start with autoplay OFF so Twitch can’t “helpfully” play an old VOD.
+      autoplay: false,
+      muted: false,
+      volume: 0.5,
 
-  const titleEl = document.getElementById('wg-title');
-  const dot     = document.getElementById('wg-dot');
-  const liveTxt = document.getElementById('wg-live-text');
-  const videoWrap = document.getElementById('wg-video');
-  const slideshowWrap = document.getElementById('wg-slideshow');
-  const dbg = document.getElementById('wg-debug');
+      showBadge: true,
 
-  const debugOn = location.hash.includes('debug');
-  if (debugOn) dbg.classList.add('on');
+      // Images are in the SAME folder as index.html (repo root on GitHub Pages)
+      slides: [
+        "WGNS.png",
+        "BGTV.png",
+        "PTS.png",
+        "RWX.png"
+      ],
 
-  let mode = 'offair';
-  let player = null;
-  let reloadTimer = null;
-  let detectTimer = null;
-  let initTimer = null;
+      slideMs: 10000,
 
-  let liveConfidenceStartedAt = null;
-  let lastPlayableAt = 0;
-  let lastErrorAt = 0;
+      // Backup live check (no setup). If you don’t want it, set to 0.
+      pollMs: 30000,
 
-  let slideTimer = null;
-  let activeIdx = 0;
+      // Recreate the player occasionally while offline (helps “stuck offline/live” edge cases)
+      offlineRecreateMs: 60000,
 
-  function log(msg){
-    if (!debugOn) return;
-    const ts = new Date().toLocaleTimeString();
-    dbg.textContent = '[' + ts + '] ' + msg + '\n' + dbg.textContent.slice(0, 1700);
-  }
+      // After we switch to “online”, wait a beat then confirm we didn’t get a VOD.
+      vodGuardDelayMs: 1500,
+    };
 
-  function setUI(live){
-    dot.classList.toggle('live', !!live);
-    liveTxt.textContent = live ? 'LIVE' : 'Off Air';
-    titleEl.textContent = live ? 'Big G TV • LIVE' : 'Big G TV is Off Air (for now)';
-    videoWrap.classList.toggle('is-on', !!live);
-    slideshowWrap.classList.toggle('is-off', !!live);
-  }
-  function setMode(next){
-    if (mode === next) return;
-    mode = next;
-    setUI(mode === 'live');
-    log('MODE => ' + mode);
+    // ===================== DOM =====================
+    const slideshowLayer = document.getElementById("slideshowLayer");
+    const playerLayer = document.getElementById("playerLayer");
+    const badge = document.getElementById("badge");
 
-    if (mode === 'live'){
-      stopSlideshow();
-      // stop both detectors once we're live (player watchdog will keep it healthy)
-      stopLiveProbe();
-      stopLiveDetect();
-    } else {
-      // offair
+    function setBadge(state, note){
+      if (!CONFIG.showBadge) { badge.style.display = "none"; return; }
+      badge.style.display = "block";
+      badge.classList.toggle("online", state === "online");
+      badge.classList.toggle("offline", state !== "online");
+      badge.childNodes[0].nodeValue = (state === "online" ? "LIVE" : "OFFLINE");
+      badge.querySelector("small").textContent = note || (state === "online" ? "Playing Twitch stream" : "Showing lobby loop");
+    }
+
+    // ===================== SLIDESHOW =====================
+    let slideEls = [];
+    let slideIdx = 0;
+    let slideTimer = null;
+
+    function buildSlides(){
+      slideshowLayer.innerHTML = "";
+      slideEls = CONFIG.slides.map(src => {
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = "";
+        slideshowLayer.appendChild(img);
+        return img;
+      });
+      slideIdx = 0;
+      if (slideEls[0]) slideEls[0].classList.add("show");
+    }
+
+    function startSlideshow(){
+      if (slideTimer) return;
+      if (!slideEls.length) buildSlides();
+      slideTimer = setInterval(() => {
+        if (!slideEls.length) return;
+        slideEls[slideIdx].classList.remove("show");
+        slideIdx = (slideIdx + 1) % slideEls.length;
+        slideEls[slideIdx].classList.add("show");
+      }, CONFIG.slideMs);
+    }
+
+    function stopSlideshow(){
+      if (slideTimer) clearInterval(slideTimer);
+      slideTimer = null;
+    }
+
+    // ===================== VIEW TOGGLE =====================
+    function showOffline(note){
+      playerLayer.style.display = "none";
+      slideshowLayer.style.display = "block";
       startSlideshow();
-      startLiveProbe();
-      startLiveDetect();
+      setBadge("offline", note || "Showing lobby loop");
     }
-  }
 
-  function renderSlides(){
-    const slidesHtml = config.slides.map((src, i) =>
-      '<div class="wg-slide' + (i===0?' is-active':'') + '" style="--bgimg: url(\'' + src + '\');"></div>'
-    ).join('');
-    slideshowWrap.innerHTML = slidesHtml;
-    activeIdx = 0;
-    startSlideshow();
-  }
-  function startSlideshow(){
-    stopSlideshow();
-    const slides = Array.from(slideshowWrap.querySelectorAll('.wg-slide'));
-    if (!slides.length) return;
-    slides.forEach((s,i)=>s.classList.toggle('is-active', i===activeIdx));
-    slideTimer = setInterval(() => {
-      const prev = activeIdx;
-      activeIdx = (activeIdx + 1) % slides.length;
-      slides[prev].classList.remove('is-active');
-      slides[activeIdx].classList.add('is-active');
-    }, Math.max(2000, config.slideSeconds * 1000));
-  }
-  function stopSlideshow(){ if (slideTimer) { clearInterval(slideTimer); slideTimer=null; } }
+    function showOnline(note){
+      slideshowLayer.style.display = "none";
+      playerLayer.style.display = "block";
+      stopSlideshow();
+      setBadge("online", note || "Playing Twitch stream");
+    }
 
-  function liveIframeSrc(){
-    return 'https://www.youtube-nocookie.com/embed/live_stream?channel='
-      + encodeURIComponent(config.channelId)
-      + '&autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
-      + '&_=' + Date.now();
-  }
+    // ===================== TWITCH PLAYER =====================
+    let player = null;
+    let lastMode = "offline";
 
-  let iframeEl = document.getElementById('yt-embed');
+    function parentDomains(){
+      // Required by Twitch: must match the hosting domain
+      const host = window.location.hostname;
+      return host ? [host] : [];
+    }
 
-  function reloadIframe(){
-    iframeEl.src = liveIframeSrc();
-    log('iframe reload');
-  }
+    function createPlayer({ autoplay } = {}){
+      const auto = (typeof autoplay === "boolean") ? autoplay : CONFIG.autoplay;
 
-  
-  // --- Reliable LIVE detection (works on static hosting) ---
-  // We fetch the channel /live page via a CORS-friendly proxy and extract the primary og:url / canonical watch URL.
-  // This avoids the stale `embed/live_stream?channel=` issue that often requires a full page refresh.
-  const PROXIES = [
-    // Most reliable and lightweight
-    (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-    // Fallback (can rate limit if hit too frequently)
-    (u) => 'https://r.jina.ai/' + u
-  ];
+      document.getElementById("twitch-embed").innerHTML = "";
 
-  const LIVE_URLS = [
-    () => 'https://www.youtube.com/channel/' + config.channelId + '/live',
-    () => 'https://www.youtube.com/@' + config.handle + '/live'
-  ];
+      player = new Twitch.Player("twitch-embed", {
+        channel: CONFIG.channel,
+        parent: parentDomains(),
+        autoplay: auto,
+        muted: CONFIG.muted,
+      });
 
-  let probeTimer = null;
-  let probeBackoffMs = 15000; // starts at 15s
-  let probeInFlight = false;
+      try { player.setVolume(CONFIG.volume); } catch(e) {}
 
-  function parsePrimaryLiveVideoId(htmlText){
-    if (!htmlText) return null;
-    // Prefer og:url (points to the currently surfaced primary video for /live when live is active)
-    let m = htmlText.match(/property=["']og:url["'][^>]*content=["']https?:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/i);
-    if (m && m[1]) return m[1];
+      player.addEventListener(Twitch.Player.ONLINE, () => {
+        // ONLINE event can sometimes happen even if Twitch starts a VOD.
+        // We switch online, then run a VOD guard check shortly after.
+        goOnline("Twitch says ONLINE");
+      });
 
-    // Fallback: canonical link
-    m = htmlText.match(/rel=["']canonical["'][^>]*href=["']https?:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/i);
-    if (m && m[1]) return m[1];
+      player.addEventListener(Twitch.Player.OFFLINE, () => {
+        goOffline("Twitch says OFFLINE");
+      });
+    }
 
-    return null;
-  }
+    // ===================== VOD GUARD =====================
+    function isProbablyVOD(){
+      // We can’t read inside the Twitch iframe (cross-domain),
+      // but we *can* inspect the iframe src. VODs usually include "video=" or "/videos/".
+      const iframe = document.querySelector("#twitch-embed iframe");
+      if (!iframe) return false;
+      const src = iframe.getAttribute("src") || "";
+      return src.includes("video=") || src.includes("/videos/");
+    }
 
-  async function fetchText(url){
-    const r = await fetch(url, { cache: 'no-store' });
-    return { status: r.status, text: await r.text() };
-  }
-
-  async function probeForLiveVideoId(){
-    if (mode === 'live') return null;
-    if (probeInFlight) return null;
-    probeInFlight = true;
-
-    try {
-      for (const liveUrlFn of LIVE_URLS){
-        const liveUrl = liveUrlFn();
-        for (const proxyFn of PROXIES){
-          const proxied = proxyFn(liveUrl);
-          let res;
-          try {
-            res = await fetchText(proxied);
-          } catch (e) {
-            log('probe ERR fetch ' + proxied + ' :: ' + (e && e.message ? e.message : e));
-            continue;
-          }
-          log('probe ' + res.status + ' ' + proxied);
-          if (res.status === 429) {
-            // rate limited: back off and stop trying other proxies for a bit
-            probeBackoffMs = Math.min(probeBackoffMs * 2, 180000);
-            return null;
-          }
-          if (res.status < 200 || res.status >= 300) continue;
-
-          const vid = parsePrimaryLiveVideoId(res.text);
-          if (vid) return vid;
+    let vodGuardTimer = null;
+    function scheduleVodGuard(){
+      if (vodGuardTimer) clearTimeout(vodGuardTimer);
+      vodGuardTimer = setTimeout(() => {
+        if (playerLayer.style.display === "block" && isProbablyVOD()){
+          // This is the exact bug you hit: an old stream/VOD is playing while you’re offline.
+          goOffline("Blocked a VOD (offline)");
         }
-      }
-      return null;
-    } finally {
-      probeInFlight = false;
+      }, CONFIG.vodGuardDelayMs);
     }
-  }
 
-  function videoEmbedSrc(videoId){
-    return 'https://www.youtube-nocookie.com/embed/'
-      + encodeURIComponent(videoId)
-      + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1'
-      + '&_=' + Date.now();
-  }
-
-  async function tickLiveProbe(){
-    try {
-      const vid = await probeForLiveVideoId();
-      if (vid && isRealVideoId(vid)) {
-        iframeEl.src = videoEmbedSrc(vid);
-        log('SWITCH iframe -> videoId ' + vid);
-        setMode('live');
-        stopSlideshow();
-        stopLiveDetect();
-      } else {
-        // If not live, gradually relax backoff (but never below 15s)
-        probeBackoffMs = Math.max(15000, Math.floor(probeBackoffMs * 0.9));
-      }
-    } catch (e) {
-      log('probe ERR ' + (e && e.message ? e.message : e));
-      probeBackoffMs = Math.min(probeBackoffMs * 2, 180000);
-    } finally {
-      // reschedule with current backoff
-      if (probeTimer) clearTimeout(probeTimer);
-      if (mode !== 'live') probeTimer = setTimeout(tickLiveProbe, probeBackoffMs);
+    // ===================== MODE CONTROL =====================
+    function goOffline(reason){
+      lastMode = "offline";
+      showOffline(reason);
+      // While offline, keep autoplay OFF so Twitch can’t start a VOD.
+      CONFIG.autoplay = false;
     }
-  }
 
-  function startLiveProbe(){
-    if (probeTimer) return;
-    probeBackoffMs = 15000;
-    tickLiveProbe();
-  }
-
-  function stopLiveProbe(){
-    if (probeTimer) { clearTimeout(probeTimer); probeTimer = null; }
-    probeInFlight = false;
-  }
-  // --- end LIVE detection ---
-
-function isLiveState(s){ return s === 1 || s === 3; }
-  function isRealVideoId(vid){
-    if (!vid) return false;
-    if (vid === 'live_stream') return false;
-    if (vid.length < 10) return false;
-    return true;
-  }
-
-  function noteLiveEvidence(isLive){
-    const now = Date.now();
-    if (isLive){
-      if (!liveConfidenceStartedAt) liveConfidenceStartedAt = now;
-      const elapsedMs = now - liveConfidenceStartedAt;
-      if (debugOn) log('live evidence ' + (elapsedMs/1000).toFixed(1) + 's');
-      if (elapsedMs >= config.settleLiveMs){
-        setMode('live');
-      }
-    } else {
-      liveConfidenceStartedAt = null;
-      setMode('offair');
+    function goOnline(reason){
+      lastMode = "online";
+      // When we decide to go online, recreate player with autoplay ON (so it actually starts live).
+      CONFIG.autoplay = true;
+      showOnline(reason);
+      createPlayer({ autoplay: true });
+      scheduleVodGuard();
     }
-  }
 
-  function detectLive(){
-    if (!player) return;
-    let st = null;
-    try { st = player.getPlayerState(); } catch(e){}
-    let vid = '';
-    try {
-      const vd = player.getVideoData && player.getVideoData();
-      vid = (vd && (vd.video_id || vd.videoId)) ? (vd.video_id || vd.videoId) : '';
-    } catch(e){}
+    // ===================== BACKUP LIVE CHECK (NO SETUP) =====================
+    async function checkLiveDecapi(){
+      // Returns "offline" or uptime string. Treat non-offline as live-ish.
+      const url = `https://decapi.me/twitch/uptime/${encodeURIComponent(CONFIG.channel)}?redirect=true`;
+      try{
+        const res = await fetch(url, { cache: "no-store" });
+        const text = (await res.text()).trim().toLowerCase();
+        return text && text !== "offline";
+      } catch(e){
+        return null; // unknown
+      }
+    }
 
-    const liveByState = (typeof st === 'number') && isLiveState(st);
-    const liveByVideoId = isRealVideoId(vid);
+    // ===================== INIT =====================
+    (function init(){
+      buildSlides();
+      goOffline("Checking stream status…");
+      createPlayer({ autoplay: false }); // start safe
 
-    log('state=' + st + ' vid=' + (vid||'(none)') + ' liveByState=' + liveByState + ' liveByVid=' + liveByVideoId);
-    noteLiveEvidence(liveByState || liveByVideoId);
-  }
-
-  function initPlayerNow(){
-    if (!window.YT || !YT.Player) return false;
-    if (player) return true;
-
-    log('Init YT.Player...');
-    try {
-      player = new YT.Player('yt-embed', {
-        events: {
-          onReady: (e) => {
-            log('YT ready');
-            try { e.target.mute(); } catch(_e){}
-            try { e.target.playVideo(); } catch(_e){}
-            if (!detectTimer) detectTimer = setInterval(detectLive, config.detectPollMs);
-          },
-          onStateChange: (e) => {
-            log('onStateChange=' + e.data);
-            if (isLiveState(e.data)) {
-              lastPlayableAt = Date.now();
-              noteLiveEvidence(true);
-            }
-          },
-          onError: (e) => {
-            log('onError=' + e.data);
-            lastErrorAt = Date.now();
-            liveConfidenceStartedAt = null;
-            setMode('offair');
+      // Backup polling loop (optional)
+      if (CONFIG.pollMs > 0){
+        setInterval(async () => {
+          const live = await checkLiveDecapi();
+          if (live === true) {
+            // Only switch online if we aren’t already
+            if (lastMode !== "online") goOnline("Status check: LIVE");
+            else scheduleVodGuard();
+          } else if (live === false) {
+            if (lastMode !== "offline") goOffline("Status check: OFFLINE");
+          } else {
+            // unknown, keep current mode
+            setBadge(lastMode === "online" ? "online" : "offline", "Status check failed (network)");
           }
+        }, CONFIG.pollMs);
+      }
+
+      // Recreate player periodically while offline (still with autoplay OFF)
+      setInterval(() => {
+        if (lastMode === "offline") createPlayer({ autoplay: false });
+      }, CONFIG.offlineRecreateMs);
+
+      // Press F to toggle fullscreen
+      document.addEventListener("keydown", (e) => {
+        if (e.key.toLowerCase() === "f") {
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+          else document.exitFullscreen?.();
         }
       });
-      return true;
-    } catch(e) {
-      log('YT init threw');
-      return false;
-    }
-  }
-
-  function startInitFallback(){
-    if (initTimer) return;
-    initTimer = setInterval(() => {
-      const ok = initPlayerNow();
-      if (ok){
-        clearInterval(initTimer);
-        initTimer = null;
-        log('YT init fallback success');
-      }
-    }, 500);
-  }
-
-  function rebuildPlayerAfterReload(){
-    if (player && player.destroy){
-      try { player.destroy(); } catch(_e){}
-    }
-    player = null;
-    liveConfidenceStartedAt = null;
-    setTimeout(() => initPlayerNow(), 250);
-  }
-
-  function hardRebuildIframe(){
-    log('HARD rebuild iframe');
-    const holder = document.getElementById('yt-holder');
-    holder.innerHTML = '<iframe id="yt-embed" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
-    iframeEl = document.getElementById('yt-embed');
-    reloadIframe();
-    rebuildPlayerAfterReload();
-  }
-
-  function startReloadLoop(){
-    if (reloadTimer) return;
-    reloadTimer = setInterval(() => {
-      const now = Date.now();
-      const recentlyPlayable = (now - lastPlayableAt) < config.stuckLiveMs;
-      const recentlyErrored  = (now - lastErrorAt) < config.stuckLiveMs;
-
-      if (mode === 'offair'){
-        reloadIframe();
-        rebuildPlayerAfterReload();
-        return;
-      }
-
-      if (mode === 'live' && !recentlyPlayable){
-        log('LIVE but not playable -> self-heal');
-        if (recentlyErrored) hardRebuildIframe();
-        else { reloadIframe(); rebuildPlayerAfterReload(); }
-      }
-    }, config.iframeReloadMs);
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden){
-      log('visible -> reload');
-      reloadIframe();
-      rebuildPlayerAfterReload();
-      setTimeout(() => detectLive(), 1000);
-    }
-  });
-
-  renderSlides();
-  setMode('offair');
-  reloadIframe();
-
-  // Start robust live probing (independent of YouTube player state)
-  startLiveProbe();
-
-  const s = document.createElement('script');
-  s.src = 'https://www.youtube.com/iframe_api';
-  s.async = true;
-  document.head.appendChild(s);
-
-  window.onYouTubeIframeAPIReady = () => {
-    log('YT IFrame API ready');
-    initPlayerNow();
-  };
-
-  startInitFallback();
-  startReloadLoop();
-})();
-</script>
+    })();
+  </script>
 </body>
 </html>
