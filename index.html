@@ -6,15 +6,13 @@
   <title>WGNS / Big G TV Lobby</title>
   <meta name="color-scheme" content="dark" />
   <style>
-    :root{
-      --bg:#000;
-      --fade: 900ms;
-    }
+    :root{ --bg:#000; --fade: 900ms; }
     html, body { height:100%; margin:0; background:var(--bg); overflow:hidden; }
     #wrap { position:relative; width:100%; height:100%; background:var(--bg); }
     #playerLayer, #slideshowLayer { position:absolute; inset:0; }
     #slideshowLayer { display:block; background:var(--bg); }
     #playerLayer { display:none; background:var(--bg); }
+
     #slideshowLayer img{
       position:absolute; inset:0;
       width:100%; height:100%;
@@ -24,7 +22,6 @@
     }
     #slideshowLayer img.show{ opacity:1; }
 
-    /* Small status badge (optional) */
     #badge{
       position:absolute; left:18px; bottom:18px;
       padding:8px 10px; border-radius:12px;
@@ -42,7 +39,6 @@
     #twitch-embed, iframe { width:100% !important; height:100% !important; }
   </style>
 
-  <!-- Twitch embed SDK -->
   <script src="https://player.twitch.tv/js/embed/v1.js"></script>
 </head>
 <body>
@@ -61,31 +57,19 @@
     const CONFIG = {
       channel: "wgnsbiggtv",
 
-      // IMPORTANT: Start with autoplay OFF so Twitch can’t “helpfully” play an old VOD.
-      autoplay: false,
-      muted: false,
-      volume: 0.5,
-
-      showBadge: true,
-
-      // Images are in the SAME folder as index.html (repo root on GitHub Pages)
-      slides: [
-        "WGNS.png",
-        "BGTV.png",
-        "PTS.png",
-        "RWX.png"
-      ],
-
+      // Images in same folder as index.html
+      slides: ["WGNS.png","BGTV.png","PTS.png","RWX.png"],
       slideMs: 10000,
 
-      // Backup live check (no setup). If you don’t want it, set to 0.
-      pollMs: 30000,
+      // How often to check Twitch page for live status
+      pollMs: 20000,
 
-      // Recreate the player occasionally while offline (helps “stuck offline/live” edge cases)
-      offlineRecreateMs: 60000,
+      // If live, recreate player occasionally to keep it healthy
+      onlineRecreateMs: 10 * 60 * 1000, // 10 minutes
 
-      // After we switch to “online”, wait a beat then confirm we didn’t get a VOD.
-      vodGuardDelayMs: 1500,
+      muted: false,
+      volume: 0.5,
+      showBadge: true,
     };
 
     // ===================== DOM =====================
@@ -138,6 +122,7 @@
 
     // ===================== VIEW TOGGLE =====================
     function showOffline(note){
+      // IMPORTANT: hide Twitch completely so it can't show "last stream" UI
       playerLayer.style.display = "none";
       slideshowLayer.style.display = "block";
       startSlideshow();
@@ -153,87 +138,69 @@
 
     // ===================== TWITCH PLAYER =====================
     let player = null;
-    let lastMode = "offline";
 
     function parentDomains(){
-      // Required by Twitch: must match the hosting domain
       const host = window.location.hostname;
       return host ? [host] : [];
     }
 
-    function createPlayer({ autoplay } = {}){
-      const auto = (typeof autoplay === "boolean") ? autoplay : CONFIG.autoplay;
-
+    function createPlayer(){
       document.getElementById("twitch-embed").innerHTML = "";
-
       player = new Twitch.Player("twitch-embed", {
         channel: CONFIG.channel,
         parent: parentDomains(),
-        autoplay: auto,
+        autoplay: true,      // ONLY created when we already confirmed live
         muted: CONFIG.muted,
       });
-
       try { player.setVolume(CONFIG.volume); } catch(e) {}
-
-      player.addEventListener(Twitch.Player.ONLINE, () => {
-        // ONLINE event can sometimes happen even if Twitch starts a VOD.
-        // We switch online, then run a VOD guard check shortly after.
-        goOnline("Twitch says ONLINE");
-      });
-
-      player.addEventListener(Twitch.Player.OFFLINE, () => {
-        goOffline("Twitch says OFFLINE");
-      });
     }
 
-    // ===================== VOD GUARD =====================
-    function isProbablyVOD(){
-      // We can’t read inside the Twitch iframe (cross-domain),
-      // but we *can* inspect the iframe src. VODs usually include "video=" or "/videos/".
-      const iframe = document.querySelector("#twitch-embed iframe");
-      if (!iframe) return false;
-      const src = iframe.getAttribute("src") || "";
-      return src.includes("video=") || src.includes("/videos/");
-    }
+    // ===================== LIVE CHECK (CORS-safe) =====================
+    async function isTwitchLive(channel){
+      // Use a text proxy so GitHub Pages can fetch the channel page source
+      const url = `https://r.jina.ai/https://www.twitch.tv/${encodeURIComponent(channel)}`;
+      try{
+        const res = await fetch(url, { cache: "no-store" });
+        const text = await res.text();
 
-    let vodGuardTimer = null;
-    function scheduleVodGuard(){
-      if (vodGuardTimer) clearTimeout(vodGuardTimer);
-      vodGuardTimer = setTimeout(() => {
-        if (playerLayer.style.display === "block" && isProbablyVOD()){
-          // This is the exact bug you hit: an old stream/VOD is playing while you’re offline.
-          goOffline("Blocked a VOD (offline)");
-        }
-      }, CONFIG.vodGuardDelayMs);
+        // Twitch page includes JSON-LD with "isLiveBroadcast": true/false
+        // We'll check for the true case.
+        if (text.includes('"isLiveBroadcast":true') || text.includes('"isLiveBroadcast": true')) return true;
+        if (text.includes('"isLiveBroadcast":false') || text.includes('"isLiveBroadcast": false')) return false;
+
+        // If we can’t find it, treat as unknown -> don't show player
+        return null;
+      } catch(e){
+        return null;
+      }
     }
 
     // ===================== MODE CONTROL =====================
+    let mode = "offline";
+    let onlineRecreateTimer = null;
+
     function goOffline(reason){
-      lastMode = "offline";
+      mode = "offline";
+      // Kill player DOM so it can’t display the old stream header
+      document.getElementById("twitch-embed").innerHTML = "";
+      player = null;
+
+      if (onlineRecreateTimer) clearInterval(onlineRecreateTimer);
+      onlineRecreateTimer = null;
+
       showOffline(reason);
-      // While offline, keep autoplay OFF so Twitch can’t start a VOD.
-      CONFIG.autoplay = false;
     }
 
     function goOnline(reason){
-      lastMode = "online";
-      // When we decide to go online, recreate player with autoplay ON (so it actually starts live).
-      CONFIG.autoplay = true;
+      mode = "online";
       showOnline(reason);
-      createPlayer({ autoplay: true });
-      scheduleVodGuard();
-    }
+      createPlayer();
 
-    // ===================== BACKUP LIVE CHECK (NO SETUP) =====================
-    async function checkLiveDecapi(){
-      // Returns "offline" or uptime string. Treat non-offline as live-ish.
-      const url = `https://decapi.me/twitch/uptime/${encodeURIComponent(CONFIG.channel)}?redirect=true`;
-      try{
-        const res = await fetch(url, { cache: "no-store" });
-        const text = (await res.text()).trim().toLowerCase();
-        return text && text !== "offline";
-      } catch(e){
-        return null; // unknown
+      // keep it healthy if it's up for hours
+      if (!onlineRecreateTimer){
+        onlineRecreateTimer = setInterval(() => {
+          if (mode === "online") createPlayer();
+        }, CONFIG.onlineRecreateMs);
       }
     }
 
@@ -241,31 +208,23 @@
     (function init(){
       buildSlides();
       goOffline("Checking stream status…");
-      createPlayer({ autoplay: false }); // start safe
 
-      // Backup polling loop (optional)
-      if (CONFIG.pollMs > 0){
-        setInterval(async () => {
-          const live = await checkLiveDecapi();
-          if (live === true) {
-            // Only switch online if we aren’t already
-            if (lastMode !== "online") goOnline("Status check: LIVE");
-            else scheduleVodGuard();
-          } else if (live === false) {
-            if (lastMode !== "offline") goOffline("Status check: OFFLINE");
-          } else {
-            // unknown, keep current mode
-            setBadge(lastMode === "online" ? "online" : "offline", "Status check failed (network)");
-          }
-        }, CONFIG.pollMs);
-      }
+      // Poll loop
+      setInterval(async () => {
+        const live = await isTwitchLive(CONFIG.channel);
 
-      // Recreate player periodically while offline (still with autoplay OFF)
-      setInterval(() => {
-        if (lastMode === "offline") createPlayer({ autoplay: false });
-      }, CONFIG.offlineRecreateMs);
+        if (live === true && mode !== "online") {
+          goOnline("Confirmed LIVE");
+        } else if (live === false && mode !== "offline") {
+          goOffline("Confirmed OFFLINE");
+        } else if (live === null) {
+          // unknown — safest behavior is: stay offline (slideshow)
+          if (mode !== "offline") goOffline("Status unknown (network) — showing loop");
+          else setBadge("offline", "Status unknown (network) — showing loop");
+        }
+      }, CONFIG.pollMs);
 
-      // Press F to toggle fullscreen
+      // Fullscreen hotkey
       document.addEventListener("keydown", (e) => {
         if (e.key.toLowerCase() === "f") {
           if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
