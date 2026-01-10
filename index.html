@@ -45,7 +45,6 @@
   <div id="wrap">
     <div id="slideshowLayer"></div>
 
-    <!-- Player starts hidden; we ONLY reveal it after we confirm real playback -->
     <div id="playerLayer">
       <div id="twitch-embed"></div>
     </div>
@@ -54,28 +53,26 @@
   </div>
 
   <script>
-    /**
-     * Fix for the “old stream title/date + black screen” problem:
-     * We NEVER show the Twitch layer unless we confirm actual playback.
-     * Twitch can load channel metadata (last title/date) even while offline.
-     */
-
     // ===================== CONFIG =====================
     const CONFIG = {
       channel: "wgnsbiggtv",
 
-      // Put these PNGs in the SAME folder as index.html
+      // Images in SAME folder as index.html
       slides: ["WGNS.png","BGTV.png","PTS.png","RWX.png"],
       slideMs: 10000,
 
-      // Check interval for “are we live?”
-      pollMs: 20000,
+      // How often to check live status
+      pollMs: 15000,
 
-      // How long we give the player to actually start playing before we assume “not live”
-      playbackConfirmMs: 6000,
-
-      muted: false,
+      // Player behavior
+      // IMPORTANT: leave muted=true for lobby TVs so autoplay ALWAYS works.
+      muted: true,
       volume: 0.5,
+
+      // After switching to live, verify playback (time advances). If not, retry a couple times.
+      playbackCheckDelayMs: 2500,
+      maxPlaybackRetries: 2,
+
       showBadge: true,
     };
 
@@ -129,12 +126,11 @@
 
     // ===================== VIEW TOGGLE =====================
     function showOffline(note){
-      // IMPORTANT: Hide Twitch completely so it cannot show “last stream” UI.
       playerLayer.style.display = "none";
       slideshowLayer.style.display = "block";
       startSlideshow();
       setBadge("offline", note || "Showing lobby loop");
-      destroyPlayer();
+      destroyPlayer(); // removes the “last stream title/date” UI completely
     }
 
     function showOnline(note){
@@ -144,42 +140,40 @@
       setBadge("online", note || "Playing Twitch stream");
     }
 
-    // ===================== LIVE CHECK (CORS-safe page source) =====================
+    // ===================== LIVE CHECK (CORS-safe) =====================
     async function isTwitchLive(channel){
-      // GitHub Pages can’t fetch twitch.tv directly (CORS),
-      // so we fetch the HTML via a text proxy.
-      const url = `https://r.jina.ai/https://www.twitch.tv/${encodeURIComponent(channel)}`;
+      // Cache-buster to avoid stale results
+      const bust = Date.now();
+      const url = `https://r.jina.ai/https://www.twitch.tv/${encodeURIComponent(channel)}?cb=${bust}`;
       try{
         const res = await fetch(url, { cache: "no-store" });
         const text = await res.text();
 
-        // Look for JSON-LD flag in the HTML:
-        // "isLiveBroadcast": true / false
+        // Look for JSON-LD flag:
         if (text.includes('"isLiveBroadcast":true') || text.includes('"isLiveBroadcast": true')) return true;
         if (text.includes('"isLiveBroadcast":false') || text.includes('"isLiveBroadcast": false')) return false;
 
-        return null; // unknown
+        return null;
       }catch(e){
         return null;
       }
     }
 
-    // ===================== TWITCH PLAYER (hidden until confirmed) =====================
+    // ===================== TWITCH PLAYER =====================
     let player = null;
-    let confirming = false;
 
     function parentDomains(){
       const host = window.location.hostname;
       return host ? [host] : [];
     }
 
-    function createPlayerHidden(){
+    function createPlayer(){
       document.getElementById("twitch-embed").innerHTML = "";
       player = new Twitch.Player("twitch-embed", {
         channel: CONFIG.channel,
         parent: parentDomains(),
         autoplay: true,
-        muted: CONFIG.muted,
+        muted: CONFIG.muted, // keep this true for reliable autoplay
       });
       try { player.setVolume(CONFIG.volume); } catch(e) {}
     }
@@ -187,33 +181,28 @@
     function destroyPlayer(){
       document.getElementById("twitch-embed").innerHTML = "";
       player = null;
-      confirming = false;
     }
 
-    // Confirm real playback by checking that currentTime increases.
+    function iframeLooksVod(){
+      const iframe = document.querySelector("#twitch-embed iframe");
+      const src = iframe?.getAttribute("src") || "";
+      return src.includes("video=") || src.includes("/videos/");
+    }
+
     async function confirmPlayback(){
       if (!player) return false;
 
-      // Wait a moment for iframe + playback to initialize
-      await sleep(1200);
+      // If it’s clearly a VOD link, reject
+      if (iframeLooksVod()) return false;
 
-      let t1 = safeGet(() => player.getCurrentTime?.(), 0);
-      await sleep(1200);
-      let t2 = safeGet(() => player.getCurrentTime?.(), 0);
+      // Try to see if current time advances
+      const t1 = safeGet(() => player.getCurrentTime?.(), 0);
+      await sleep(900);
+      const t2 = safeGet(() => player.getCurrentTime?.(), 0);
+      await sleep(900);
+      const t3 = safeGet(() => player.getCurrentTime?.(), 0);
 
-      // Some embeds return 0 for a while; try one more time
-      await sleep(1200);
-      let t3 = safeGet(() => player.getCurrentTime?.(), 0);
-
-      // If time is moving forward, we’re actually playing (not just showing last stream header)
-      const moved = (t2 > t1 + 0.2) || (t3 > t2 + 0.2) || (t3 > t1 + 0.5);
-
-      // Also reject obvious “VOD shell” cases if src contains video=
-      const iframe = document.querySelector("#twitch-embed iframe");
-      const src = iframe?.getAttribute("src") || "";
-      const looksVod = src.includes("video=") || src.includes("/videos/");
-
-      return moved && !looksVod;
+      return (t2 > t1 + 0.2) || (t3 > t2 + 0.2) || (t3 > t1 + 0.5);
     }
 
     function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -226,69 +215,66 @@
       }
     }
 
-    // ===================== STATE MACHINE =====================
+    // ===================== STATE =====================
     let mode = "offline";
+    let playbackRetries = 0;
+    let switching = false;
 
-    async function tryGoLive(){
-      if (confirming) return;
-      confirming = true;
+    async function goLive(){
+      if (switching) return;
+      switching = true;
+      playbackRetries = 0;
 
-      // Build player, but keep it hidden while we confirm
-      createPlayerHidden();
-      playerLayer.style.display = "none";
+      showOnline("LIVE (starting player…)"); // show immediately
+      createPlayer();
 
-      const ok = await promiseWithTimeout(confirmPlayback(), CONFIG.playbackConfirmMs);
-
-      if (ok === true){
-        mode = "online";
-        showOnline("Confirmed LIVE");
-      } else {
-        // If we can’t confirm playback, treat as offline (your exact issue)
-        mode = "offline";
-        showOffline("Offline (no playback)");
+      // Verify playback & retry if needed
+      while (playbackRetries <= CONFIG.maxPlaybackRetries) {
+        await sleep(CONFIG.playbackCheckDelayMs);
+        const ok = await confirmPlayback();
+        if (ok) {
+          setBadge("online", "Playing Twitch stream");
+          switching = false;
+          mode = "online";
+          return;
+        }
+        playbackRetries++;
+        // If not confirmed, recreate player (common fix for embed getting “stuck”)
+        createPlayer();
       }
 
-      confirming = false;
+      // Could not confirm playback → treat as offline
+      showOffline("Offline (no playback)");
+      mode = "offline";
+      switching = false;
     }
 
-    function promiseWithTimeout(promise, ms){
-      return Promise.race([
-        promise,
-        new Promise(resolve => setTimeout(() => resolve(false), ms))
-      ]);
+    function goOffline(reason){
+      mode = "offline";
+      showOffline(reason || "Confirmed OFFLINE");
     }
 
     // ===================== INIT =====================
     (function init(){
       buildSlides();
-      showOffline("Checking stream status…");
+      goOffline("Checking stream status…");
 
       setInterval(async () => {
         const live = await isTwitchLive(CONFIG.channel);
 
-        if (live === true){
-          if (mode !== "online"){
-            await tryGoLive();
-          }
-        } else if (live === false){
-          if (mode !== "offline"){
-            mode = "offline";
-            showOffline("Confirmed OFFLINE");
-          } else {
-            setBadge("offline", "Confirmed OFFLINE");
-          }
+        if (live === true) {
+          if (mode !== "online") await goLive();
+        } else if (live === false) {
+          if (mode !== "offline") goOffline("Confirmed OFFLINE");
+          else setBadge("offline", "Confirmed OFFLINE");
         } else {
-          // Unknown -> safest is offline slideshow
-          if (mode !== "offline"){
-            mode = "offline";
-            showOffline("Status unknown — showing loop");
-          } else {
-            setBadge("offline", "Status unknown — showing loop");
-          }
+          // Unknown → safest is slideshow
+          if (mode !== "offline") goOffline("Status unknown — showing loop");
+          else setBadge("offline", "Status unknown — showing loop");
         }
       }, CONFIG.pollMs);
 
-      // Press F to toggle fullscreen
+      // Press F for fullscreen
       document.addEventListener("keydown", (e) => {
         if (e.key.toLowerCase() === "f") {
           if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
